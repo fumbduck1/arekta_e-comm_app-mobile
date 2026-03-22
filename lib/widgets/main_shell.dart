@@ -76,35 +76,6 @@ class _MainShellState extends State<MainShell> {
     ),
   ];
 
-  // Admin navigation items
-  static const _adminNavItems = [
-    BottomNavigationBarItem(
-      icon: Icon(Icons.dashboard_outlined),
-      activeIcon: Icon(Icons.dashboard),
-      label: 'Dashboard',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.assignment_ind_outlined),
-      activeIcon: Icon(Icons.assignment_ind),
-      label: 'Vendors',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.image_outlined),
-      activeIcon: Icon(Icons.image),
-      label: 'Carousel',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.category_outlined),
-      activeIcon: Icon(Icons.category),
-      label: 'Categories',
-    ),
-    BottomNavigationBarItem(
-      icon: Icon(Icons.local_offer_outlined),
-      activeIcon: Icon(Icons.local_offer),
-      label: 'Coupons',
-    ),
-  ];
-
   void _onClientTap(int index) {
     if (index == widget.currentIndex) return;
     switch (index) {
@@ -135,21 +106,21 @@ class _MainShellState extends State<MainShell> {
     }
   }
 
-  void _onAdminTap(int index) {
-    if (index == widget.currentIndex) return;
-    switch (index) {
-      case 0:
-        Navigator.of(context).pushNamed('/admin/dashboard');
-      case 1:
-        Navigator.of(context).pushNamed('/admin/vendors');
-      case 2:
-        Navigator.of(context).pushNamed('/admin/carousels');
-      case 3:
-        Navigator.of(context).pushNamed('/admin/categories');
-      case 4:
-        Navigator.of(context).pushNamed('/admin/coupons');
-    }
-  }
+  // void _onAdminTap(int index) {
+  //   if (index == widget.currentIndex) return;
+  //   switch (index) {
+  //     case 0:
+  //       Navigator.of(context).pushNamed('/admin/dashboard');
+  //     case 1:
+  //       Navigator.of(context).pushNamed('/admin/vendors');
+  //     case 2:
+  //       Navigator.of(context).pushNamed('/admin/carousels');
+  //     case 3:
+  //       Navigator.of(context).pushNamed('/admin/categories');
+  //     case 4:
+  //       Navigator.of(context).pushNamed('/admin/coupons');
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -161,18 +132,7 @@ class _MainShellState extends State<MainShell> {
 
         // Build navigation based on role
         if (isAdmin) {
-          return Scaffold(
-            body: widget.child,
-            bottomNavigationBar: BottomNavigationBar(
-              currentIndex: _safeIndex(
-                widget.currentIndex,
-                _adminNavItems.length,
-              ),
-              onTap: _onAdminTap,
-              type: BottomNavigationBarType.fixed,
-              items: _adminNavItems,
-            ),
-          );
+          return Scaffold(body: widget.child);
         } else if (isVendor) {
           return Scaffold(
             body: widget.child,

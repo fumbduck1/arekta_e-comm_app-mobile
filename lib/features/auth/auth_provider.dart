@@ -445,4 +445,10 @@ class AuthProvider extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  /// Update user profile from profile provider changes
+  void updateUserFromProfile(UserModel updatedUser) {
+    _user = updatedUser;
+    notifyListeners();
+  }
 }

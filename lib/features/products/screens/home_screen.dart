@@ -12,8 +12,26 @@ import '../../../models/category_model.dart';
 import '../../../models/carousel_coupon_model.dart';
 import '../../cart/cart_provider.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  bool _showSecondaryContent = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Defer secondary sections until after first frame renders
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() => _showSecondaryContent = true);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -76,22 +94,24 @@ class HomeScreen extends StatelessWidget {
               _CategoriesSection(),
               const SizedBox(height: 20),
 
-              // ── Featured Products ──────────────────────────
-              _SectionHeader(
-                title: 'Featured Products',
-                onSeeAll: () => Navigator.of(context).pushNamed('/products'),
-              ),
-              _FeaturedProductsSection(),
-              const SizedBox(height: 20),
+              // ── Featured Products (deferred) ────────────────
+              if (_showSecondaryContent) ...[
+                _SectionHeader(
+                  title: 'Featured Products',
+                  onSeeAll: () => Navigator.of(context).pushNamed('/products'),
+                ),
+                _FeaturedProductsSection(),
+                const SizedBox(height: 20),
 
-              // ── New Arrivals ───────────────────────────────
-              _SectionHeader(
-                title: 'New Arrivals',
-                onSeeAll: () => Navigator.of(
-                  context,
-                ).pushNamed('/products', arguments: {'sort': 'newest'}),
-              ),
-              _NewArrivalsSection(),
+                // ── New Arrivals (deferred) ─────────────────
+                _SectionHeader(
+                  title: 'New Arrivals',
+                  onSeeAll: () => Navigator.of(
+                    context,
+                  ).pushNamed('/products', arguments: {'sort': 'newest'}),
+                ),
+                _NewArrivalsSection(),
+              ],
               const SizedBox(height: 32),
             ],
           ),
@@ -140,7 +160,7 @@ class _CarouselSection extends StatelessWidget {
     return Query(
       options: QueryOptions(
         document: gql(ProductQueries.getCarousels),
-        fetchPolicy: FetchPolicy.networkOnly,
+        fetchPolicy: FetchPolicy.cacheAndNetwork,
       ),
       builder: (result, {fetchMore, refetch}) {
         if (result.isLoading && result.data == null) {
@@ -225,7 +245,7 @@ class _CategoriesSection extends StatelessWidget {
     return Query(
       options: QueryOptions(
         document: gql(ProductQueries.getCategories),
-        fetchPolicy: FetchPolicy.networkOnly,
+        fetchPolicy: FetchPolicy.cacheAndNetwork,
       ),
       builder: (result, {fetchMore, refetch}) {
         if (result.isLoading && result.data == null) {
@@ -327,7 +347,7 @@ class _FeaturedProductsSection extends StatelessWidget {
             {'created_at': 'desc'},
           ],
         },
-        fetchPolicy: FetchPolicy.networkOnly,
+        fetchPolicy: FetchPolicy.cacheAndNetwork,
       ),
       builder: (result, {fetchMore, refetch}) {
         if (result.isLoading && result.data == null) {
@@ -391,7 +411,7 @@ class _NewArrivalsSection extends StatelessWidget {
             {'created_at': 'desc'},
           ],
         },
-        fetchPolicy: FetchPolicy.networkOnly,
+        fetchPolicy: FetchPolicy.cacheAndNetwork,
       ),
       builder: (result, {fetchMore, refetch}) {
         if (result.isLoading && result.data == null) {

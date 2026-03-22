@@ -6,6 +6,7 @@ import '../../../core/graphql/graphql_service.dart';
 import '../../../core/graphql/queries/order_queries.dart';
 import '../../../models/carousel_coupon_model.dart';
 import '../../cart/cart_provider.dart';
+import '../widgets/checkout_details_modal.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -195,6 +196,36 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
   }
 
+  void _showCheckoutDetails(CartProvider cart) {
+    final discount = _appliedCoupon != null
+        ? _calculateDiscount(cart.subtotal)
+        : 0.0;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => CheckoutDetailsModal(
+        subtotal: cart.subtotal,
+        shippingCost: 0.0,
+        taxCost: 0.0,
+        discountAmount: discount > 0 ? discount : null,
+        couponCode: _appliedCoupon?.code,
+        onApplyCoupon: () {
+          Navigator.pop(context);
+          _validateCoupon();
+        },
+        onRemoveCoupon: () {
+          setState(() => _appliedCoupon = null);
+          Navigator.pop(context);
+        },
+        onProceedCheckout: () {
+          Navigator.pop(context);
+          _placeOrder();
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -216,11 +247,28 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               padding: const EdgeInsets.all(16),
               children: [
                 // ── Order Summary ──────────────────────────
-                Text(
-                  'Order Summary',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Order Summary',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.receipt_long, size: 16),
+                      label: const Text('View All'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF6C63FF),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                      ),
+                      onPressed: () => _showCheckoutDetails(cart),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Card(
@@ -422,7 +470,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 SizedBox(
                   height: 52,
                   child: ElevatedButton(
-                    onPressed: _isPlacingOrder ? null : _placeOrder,
+                    onPressed: _isPlacingOrder
+                        ? null
+                        : () => _showCheckoutDetails(cart),
                     child: _isPlacingOrder
                         ? const SizedBox(
                             height: 24,
@@ -433,7 +483,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             ),
                           )
                         : Text(
-                            'Place Order — ${currency.format(cartModel.subtotal)}',
+                            'Review & Place Order — ${currency.format(cartModel.subtotal)}',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,

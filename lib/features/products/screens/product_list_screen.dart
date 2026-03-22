@@ -5,6 +5,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/graphql/queries/product_queries.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../models/product_model.dart';
+import '../widgets/filters_modal.dart';
 
 class ProductListScreen extends StatefulWidget {
   final String? categoryId;
@@ -93,42 +94,34 @@ class _ProductListScreenState extends State<ProductListScreen> {
               });
             },
           ),
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.sort),
-            onSelected: (value) {
-              setState(() {
-                switch (value) {
-                  case 'newest':
-                    _sortField = 'created_at';
-                    _sortOrder = 'desc';
-                    break;
-                  case 'price_low':
-                    _sortField = 'price';
-                    _sortOrder = 'asc';
-                    break;
-                  case 'price_high':
-                    _sortField = 'price';
-                    _sortOrder = 'desc';
-                    break;
-                  case 'name':
-                    _sortField = 'name';
-                    _sortOrder = 'asc';
-                    break;
-                }
-              });
+          IconButton(
+            icon: const Icon(Icons.tune),
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                builder: (BuildContext context) {
+                  return FiltersModal(
+                    currentSortField: _sortField,
+                    currentSortOrder: _sortOrder,
+                    onSortChanged: (sortField, sortOrder) {
+                      setState(() {
+                        _sortField = sortField;
+                        _sortOrder = sortOrder;
+                      });
+                    },
+                    onPriceRangeChanged: (minPrice, maxPrice) {
+                      // TODO: Implement price range filtering
+                    },
+                    onReset: () {
+                      setState(() {
+                        _sortField = 'created_at';
+                        _sortOrder = 'desc';
+                      });
+                    },
+                  );
+                },
+              );
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'newest', child: Text('Newest First')),
-              PopupMenuItem(
-                value: 'price_low',
-                child: Text('Price: Low to High'),
-              ),
-              PopupMenuItem(
-                value: 'price_high',
-                child: Text('Price: High to Low'),
-              ),
-              PopupMenuItem(value: 'name', child: Text('Name: A-Z')),
-            ],
           ),
         ],
       ),
