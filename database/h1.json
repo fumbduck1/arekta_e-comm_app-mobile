@@ -1,4 +1,4 @@
-{
+﻿{
   "resource_version": 21,
     "metadata": {
     "version": 3,
@@ -83,7 +83,7 @@
                 "role": "client",
                 "permission": {
                   "columns": ["id", "cart_id", "product_id", "quantity", "created_at"],
-                  "filter": { "cart": { "user_id": { "_eq": "X-Hasura-User-Id" } } }
+                  "filter": { "cart": { "user_id": { "_eq": "x-hasura-user-id" } } }
                 },
                 "comment": "Client can only see their own cart items"
               },
@@ -100,7 +100,7 @@
               {
                 "role": "client",
                 "permission": {
-                  "check": { "cart": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                  "check": { "cart": { "user_id": { "_eq": "x-hasura-user-id" } } },
                   "columns": ["cart_id", "product_id", "quantity"]
                 },
                 "comment": "Client can only add items to their own cart"
@@ -119,7 +119,7 @@
                 "role": "client",
                 "permission": {
                   "columns": ["quantity"],
-                  "filter": { "cart": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                  "filter": { "cart": { "user_id": { "_eq": "x-hasura-user-id" } } },
                   "check": {}
                 },
                 "comment": "Client can only update their own cart items"
@@ -137,7 +137,7 @@
             "delete_permissions": [
               {
                 "role": "client",
-                "permission": { "filter": { "cart": { "user_id": { "_eq": "X-Hasura-User-Id" } } } },
+                "permission": { "filter": { "cart": { "user_id": { "_eq": "x-hasura-user-id" } } } },
                 "comment": "Client can only delete their own cart items"
               },
               {
@@ -173,7 +173,7 @@
                 "role": "client",
                 "permission": {
                   "columns": ["id", "user_id", "created_at", "updated_at"],
-                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } }
+                  "filter": { "user_id": { "_eq": "x-hasura-user-id" } }
                 },
                 "comment": "Client can only see their own cart"
               },
@@ -208,7 +208,7 @@
             "delete_permissions": [
               {
                 "role": "client",
-                "permission": { "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                "permission": { "filter": { "user_id": { "_eq": "x-hasura-user-id" } } },
                 "comment": "Client can only delete their own cart"
               },
               {
@@ -392,7 +392,7 @@
                 "role": "client",
                 "permission": {
                   "columns": ["id", "order_id", "product_id", "vendor_id", "quantity", "price_at_purchase", "status", "created_at"],
-                  "filter": { "order": { "user_id": { "_eq": "X-Hasura-User-Id" } } }
+                  "filter": { "order": { "user_id": { "_eq": "x-hasura-user-id" } } }
                 },
                 "comment": "Client can only see their own order items"
               },
@@ -400,7 +400,7 @@
                 "role": "vendor",
                 "permission": {
                   "columns": ["id", "order_id", "product_id", "vendor_id", "quantity", "price_at_purchase", "status", "created_at"],
-                  "filter": { "vendor": { "user_id": { "_eq": "X-Hasura-User-Id" } } }
+                  "filter": { "vendor": { "user_id": { "_eq": "x-hasura-user-id" } } }
                 },
                 "comment": "Vendor can only see their own order items"
               },
@@ -428,7 +428,7 @@
                 "role": "vendor",
                 "permission": {
                   "columns": ["status"],
-                  "filter": { "vendor": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                  "filter": { "vendor": { "user_id": { "_eq": "x-hasura-user-id" } } },
                   "check": {}
                 },
                 "comment": "Vendor can only update their own order items"
@@ -482,7 +482,7 @@
                 "role": "client",
                 "permission": {
                   "columns": ["id", "user_id", "status", "total_amount", "shipping_address", "payment_method", "payment_status", "payment_id", "coupon_id", "coupon_discount", "created_at", "updated_at"],
-                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } }
+                  "filter": { "user_id": { "_eq": "x-hasura-user-id" } }
                 },
                 "comment": "Client can only see their own orders"
               },
@@ -524,7 +524,7 @@
                 "role": "client",
                 "permission": {
                   "columns": ["status", "shipping_address", "payment_method"],
-                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                  "filter": { "user_id": { "_eq": "x-hasura-user-id" } },
                   "check": { "status": { "_in": ["pending", "cancelled"] } }
                 },
                 "comment": "Client can only update own order contact details or cancel while pending"
@@ -622,7 +622,7 @@
                 "permission": {
                   "columns": ["id", "vendor_id", "category_id", "name", "description", "price", "sale_price", "stock", "images", "is_active", "moderation_status", "moderated_by", "moderated_at", "moderation_notes", "created_at", "updated_at"],
                   "allow_aggregations": true,
-                  "filter": { "vendor": { "user_id": { "_eq": "X-Hasura-User-Id" } } }
+                  "filter": { "vendor": { "user_id": { "_eq": "x-hasura-user-id" } } }
                 },
                 "comment": "Vendor can only see their own products"
               },
@@ -642,7 +642,7 @@
                 "permission": {
                   "check": {
                     "_and": [
-                      { "vendor": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                      { "vendor": { "user_id": { "_eq": "x-hasura-user-id" } } },
                       { "is_active": { "_eq": false } },
                       { "moderation_status": { "_eq": "pending" } },
                       { "moderated_by": { "_is_null": true } },
@@ -671,7 +671,7 @@
                 "role": "vendor",
                 "permission": {
                   "columns": ["category_id", "name", "description", "price", "sale_price", "stock", "images", "moderation_notes"],
-                  "filter": { "vendor": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                  "filter": { "vendor": { "user_id": { "_eq": "x-hasura-user-id" } } },
                   "check": {}
                 },
                 "comment": "Vendor can only update non-moderation fields on own products"
@@ -689,7 +689,7 @@
             "delete_permissions": [
               {
                 "role": "vendor",
-                "permission": { "filter": { "vendor": { "user_id": { "_eq": "X-Hasura-User-Id" } } } },
+                "permission": { "filter": { "vendor": { "user_id": { "_eq": "x-hasura-user-id" } } } },
                 "comment": "Vendor can only delete their own products"
               },
               {
@@ -747,7 +747,7 @@
               {
                 "role": "client",
                 "permission": {
-                  "check": { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                  "check": { "user_id": { "_eq": "x-hasura-user-id" } },
                   "columns": ["product_id", "rating", "comment"]
                 },
                 "comment": "Client can only leave reviews for products"
@@ -766,7 +766,7 @@
                 "role": "client",
                 "permission": {
                   "columns": ["rating", "comment"],
-                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                  "filter": { "user_id": { "_eq": "x-hasura-user-id" } },
                   "check": {}
                 },
                 "comment": "Client can only update their own reviews"
@@ -784,7 +784,7 @@
             "delete_permissions": [
               {
                 "role": "client",
-                "permission": { "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                "permission": { "filter": { "user_id": { "_eq": "x-hasura-user-id" } } },
                 "comment": "Client can only delete their own reviews"
               },
               {
@@ -824,7 +824,7 @@
                 "role": "client",
                 "permission": {
                   "columns": ["avatar_url", "email", "name", "phone", "role", "created_at", "updated_at", "id"],
-                  "filter": { "id": { "_eq": "X-Hasura-User-Id" } }
+                  "filter": { "id": { "_eq": "x-hasura-user-id" } }
                 },
                 "comment": "Client can only see their own user profile"
               },
@@ -850,7 +850,7 @@
                 "role": "client",
                 "permission": {
                   "columns": ["avatar_url", "email", "name", "phone"],
-                  "filter": { "id": { "_eq": "X-Hasura-User-Id" } },
+                  "filter": { "id": { "_eq": "x-hasura-user-id" } },
                   "check": {}
                 },
                 "comment": "Client can only update their own user profile"
@@ -868,7 +868,7 @@
             "delete_permissions": [
               {
                 "role": "client",
-                "permission": { "filter": { "id": { "_eq": "X-Hasura-User-Id" } } },
+                "permission": { "filter": { "id": { "_eq": "x-hasura-user-id" } } },
                 "comment": "Client can only delete their own user profile"
               },
               {
@@ -925,7 +925,7 @@
                 "permission": {
                   "check": {
                     "_and": [
-                      { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                      { "user_id": { "_eq": "x-hasura-user-id" } },
                       { "is_approved": { "_eq": false } }
                     ]
                   },
@@ -963,7 +963,7 @@
                 "role": "vendor",
                 "permission": {
                   "columns": ["is_approved", "description", "logo_url", "shop_name", "created_at", "updated_at", "id", "user_id"],
-                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } }
+                  "filter": { "user_id": { "_eq": "x-hasura-user-id" } }
                 },
                 "comment": "Vendor can only see their own vendor profile"
               },
@@ -981,8 +981,8 @@
                 "role": "vendor",
                 "permission": {
                   "columns": ["description", "logo_url", "shop_name"],
-                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } },
-                  "check": { "user_id": { "_eq": "X-Hasura-User-Id" } }
+                  "filter": { "user_id": { "_eq": "x-hasura-user-id" } },
+                  "check": { "user_id": { "_eq": "x-hasura-user-id" } }
                 },
                 "comment": "Vendor can only update their own vendor profile"
               },
@@ -999,7 +999,7 @@
             "delete_permissions": [
               {
                 "role": "vendor",
-                "permission": { "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                "permission": { "filter": { "user_id": { "_eq": "x-hasura-user-id" } } },
                 "comment": "Vendor can only delete their own vendor profile"
               },
               {
@@ -1025,3 +1025,4 @@
     "inherited_roles": []
   }
 }
+
