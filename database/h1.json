@@ -190,11 +190,10 @@
               {
                 "role": "client",
                 "permission": {
-                  "check": {},
-                  "set": { "user_id": "x-hasura-user-id" },
-                  "columns": []
+                  "check": { "user_id": { "_eq": "x-hasura-user-id" } },
+                  "columns": ["user_id"]
                 },
-                "comment": "Client cart is always created for the authenticated user"
+                "comment": "Client can only create cart for themselves"
               },
               {
                 "role": "super_admin",
@@ -499,16 +498,10 @@
               {
                 "role": "client",
                 "permission": {
-                  "check": {},
-                  "set": {
-                    "user_id": "x-hasura-user-id",
-                    "status": "pending",
-                    "payment_status": "unpaid",
-                    "total_amount": "0"
-                  },
-                  "columns": ["shipping_address", "payment_method", "coupon_id", "coupon_discount"]
+                  "check": { "user_id": { "_eq": "x-hasura-user-id" } },
+                  "columns": ["user_id", "status", "payment_status", "total_amount", "shipping_address", "payment_method", "coupon_id", "coupon_discount"]
                 },
-                "comment": "Client can create only their own pending/unpaid order"
+                "comment": "Client can create only their own orders"
               },
               {
                 "role": "super_admin",
@@ -649,11 +642,7 @@
                       { "moderated_at": { "_is_null": true } }
                     ]
                   },
-                  "set": {
-                    "is_active": false,
-                    "moderation_status": "pending"
-                  },
-                  "columns": ["vendor_id", "category_id", "name", "description", "price", "sale_price", "stock", "images", "moderation_notes"]
+                  "columns": ["vendor_id", "category_id", "name", "description", "price", "sale_price", "stock", "images", "is_active", "moderation_status", "moderation_notes"]
                 },
                 "comment": "Vendor can only add pending products to their own shop"
               },
