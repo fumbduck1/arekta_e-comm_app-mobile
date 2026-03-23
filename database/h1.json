@@ -1,0 +1,1027 @@
+{
+  "resource_version": 21,
+    "metadata": {
+    "version": 3,
+    "sources": [
+      {
+        "name": "default",
+        "kind": "postgres",
+        "tables": [
+          {
+            "table": { "name": "carousels", "schema": "public" },
+            "select_permissions": [
+              {
+                "role": "public",
+                "permission": {
+                  "columns": ["id", "title", "image_url", "link_type", "link_value", "sort_order", "is_active", "created_at"],
+                  "filter": { "is_active": { "_eq": true } }
+                },
+                "comment": "Public read-only access to active carousels"
+              },
+              {
+                "role": "client",
+                "permission": {
+                  "columns": ["id", "title", "image_url", "link_type", "link_value", "sort_order", "is_active", "created_at"],
+                  "filter": { "is_active": { "_eq": true } }
+                },
+                "comment": "Client read-only access to active carousels"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["id", "title", "image_url", "link_type", "link_value", "sort_order", "is_active", "created_at"],
+                  "filter": {}
+                },
+                "comment": ""
+              }
+            ],
+            "insert_permissions": [
+              {
+                "role": "super_admin",
+                "permission": {
+                  "check": {},
+                  "columns": ["id", "title", "image_url", "link_type", "link_value", "sort_order", "is_active", "created_at"]
+                },
+                "comment": ""
+              }
+            ],
+            "update_permissions": [
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["title", "image_url", "link_type", "link_value", "sort_order", "is_active"],
+                  "filter": {},
+                  "check": {}
+                },
+                "comment": ""
+              }
+            ],
+            "delete_permissions": [
+              {
+                "role": "super_admin",
+                "permission": { "filter": {} },
+                "comment": ""
+              }
+            ]
+          },
+          {
+            "table": { "name": "cart_items", "schema": "public" },
+            "object_relationships": [
+              {
+                "name": "cart",
+                "using": { "foreign_key_constraint_on": "cart_id" },
+                "comment": ""
+              },
+              {
+                "name": "product",
+                "using": { "foreign_key_constraint_on": "product_id" },
+                "comment": ""
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "client",
+                "permission": {
+                  "columns": ["id", "cart_id", "product_id", "quantity", "created_at"],
+                  "filter": { "cart": { "user_id": { "_eq": "X-Hasura-User-Id" } } }
+                },
+                "comment": "Client can only see their own cart items"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["id", "cart_id", "product_id", "quantity", "created_at"],
+                  "filter": {}
+                },
+                "comment": ""
+              }
+            ],
+            "insert_permissions": [
+              {
+                "role": "client",
+                "permission": {
+                  "check": { "cart": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                  "columns": ["cart_id", "product_id", "quantity"]
+                },
+                "comment": "Client can only add items to their own cart"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "check": {},
+                  "columns": ["id", "cart_id", "product_id", "quantity", "created_at"]
+                },
+                "comment": ""
+              }
+            ],
+            "update_permissions": [
+              {
+                "role": "client",
+                "permission": {
+                  "columns": ["quantity"],
+                  "filter": { "cart": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                  "check": {}
+                },
+                "comment": "Client can only update their own cart items"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["cart_id", "product_id", "quantity"],
+                  "filter": {},
+                  "check": {}
+                },
+                "comment": ""
+              }
+            ],
+            "delete_permissions": [
+              {
+                "role": "client",
+                "permission": { "filter": { "cart": { "user_id": { "_eq": "X-Hasura-User-Id" } } } },
+                "comment": "Client can only delete their own cart items"
+              },
+              {
+                "role": "super_admin",
+                "permission": { "filter": {} },
+                "comment": ""
+              }
+            ]
+          },
+          {
+            "table": { "name": "carts", "schema": "public" },
+            "object_relationships": [
+              {
+                "name": "user",
+                "using": { "foreign_key_constraint_on": "user_id" },
+                "comment": ""
+              }
+            ],
+            "array_relationships": [
+              {
+                "name": "cart_items",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "column": "cart_id",
+                    "table": { "name": "cart_items", "schema": "public" }
+                  }
+                },
+                "comment": ""
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "client",
+                "permission": {
+                  "columns": ["id", "user_id", "created_at", "updated_at"],
+                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } }
+                },
+                "comment": "Client can only see their own cart"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["id", "user_id", "created_at", "updated_at"],
+                  "filter": {}
+                },
+                "comment": ""
+              }
+            ],
+            "insert_permissions": [
+              {
+                "role": "client",
+                "permission": {
+                  "check": {},
+                  "set": { "user_id": "x-hasura-user-id" },
+                  "columns": []
+                },
+                "comment": "Client cart is always created for the authenticated user"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "check": {},
+                  "columns": ["id", "user_id", "created_at", "updated_at"]
+                },
+                "comment": ""
+              }
+            ],
+            "delete_permissions": [
+              {
+                "role": "client",
+                "permission": { "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                "comment": "Client can only delete their own cart"
+              },
+              {
+                "role": "super_admin",
+                "permission": { "filter": {} },
+                "comment": ""
+              }
+            ]
+          },
+          {
+            "table": { "name": "categories", "schema": "public" },
+            "object_relationships": [
+              {
+                "name": "parent",
+                "using": { "foreign_key_constraint_on": "parent_id" },
+                "comment": ""
+              }
+            ],
+            "array_relationships": [
+              {
+                "name": "subcategories",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "column": "parent_id",
+                    "table": { "name": "categories", "schema": "public" }
+                  }
+                },
+                "comment": ""
+              },
+              {
+                "name": "products",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "column": "category_id",
+                    "table": { "name": "products", "schema": "public" }
+                  }
+                },
+                "comment": ""
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "public",
+                "permission": {
+                  "columns": ["id", "name", "slug", "image_url", "parent_id", "sort_order", "created_at"],
+                  "filter": {}
+                },
+                "comment": "Public read-only access to all categories"
+              },
+              {
+                "role": "client",
+                "permission": {
+                  "columns": ["id", "name", "slug", "image_url", "parent_id", "sort_order", "created_at"],
+                  "filter": {}
+                },
+                "comment": "Client read-only access to all categories"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["id", "name", "slug", "image_url", "parent_id", "sort_order", "created_at"],
+                  "filter": {}
+                },
+                "comment": ""
+              }
+            ],
+            "insert_permissions": [
+              {
+                "role": "super_admin",
+                "permission": {
+                  "check": {},
+                  "columns": ["id", "name", "slug", "image_url", "parent_id", "sort_order", "created_at"]
+                },
+                "comment": ""
+              }
+            ],
+            "update_permissions": [
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["name", "slug", "image_url", "parent_id", "sort_order"],
+                  "filter": {},
+                  "check": {}
+                },
+                "comment": ""
+              }
+            ],
+            "delete_permissions": [
+              {
+                "role": "super_admin",
+                "permission": { "filter": {} },
+                "comment": ""
+              }
+            ]
+          },
+          {
+            "table": { "name": "coupons", "schema": "public" },
+            "object_relationships": [
+              {
+                "name": "vendor",
+                "using": { "foreign_key_constraint_on": "vendor_id" },
+                "comment": ""
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "public",
+                "permission": {
+                  "columns": ["id", "code", "discount_type", "discount_value", "min_order", "max_uses", "used_count", "vendor_id", "expires_at", "is_active", "created_at"],
+                  "filter": { "is_active": { "_eq": true } }
+                },
+                "comment": "Public read-only access to active coupons"
+              },
+              {
+                "role": "client",
+                "permission": {
+                  "columns": ["id", "code", "discount_type", "discount_value", "min_order", "max_uses", "used_count", "vendor_id", "expires_at", "is_active", "created_at"],
+                  "filter": { "is_active": { "_eq": true } }
+                },
+                "comment": "Client read-only access to active coupons"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["id", "code", "discount_type", "discount_value", "min_order", "max_uses", "used_count", "vendor_id", "expires_at", "is_active", "created_at"],
+                  "filter": {}
+                },
+                "comment": ""
+              }
+            ],
+            "insert_permissions": [
+              {
+                "role": "super_admin",
+                "permission": {
+                  "check": {},
+                  "columns": ["id", "code", "discount_type", "discount_value", "min_order", "max_uses", "used_count", "vendor_id", "expires_at", "is_active", "created_at"]
+                },
+                "comment": ""
+              }
+            ],
+            "update_permissions": [
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["code", "discount_type", "discount_value", "min_order", "max_uses", "used_count", "vendor_id", "expires_at", "is_active"],
+                  "filter": {},
+                  "check": {}
+                },
+                "comment": ""
+              }
+            ],
+            "delete_permissions": [
+              {
+                "role": "super_admin",
+                "permission": { "filter": {} },
+                "comment": ""
+              }
+            ]
+          },
+          {
+            "table": { "name": "order_items", "schema": "public" },
+            "object_relationships": [
+              {
+                "name": "order",
+                "using": { "foreign_key_constraint_on": "order_id" },
+                "comment": ""
+              },
+              {
+                "name": "product",
+                "using": { "foreign_key_constraint_on": "product_id" },
+                "comment": ""
+              },
+              {
+                "name": "vendor",
+                "using": { "foreign_key_constraint_on": "vendor_id" },
+                "comment": ""
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "client",
+                "permission": {
+                  "columns": ["id", "order_id", "product_id", "vendor_id", "quantity", "price_at_purchase", "status", "created_at"],
+                  "filter": { "order": { "user_id": { "_eq": "X-Hasura-User-Id" } } }
+                },
+                "comment": "Client can only see their own order items"
+              },
+              {
+                "role": "vendor",
+                "permission": {
+                  "columns": ["id", "order_id", "product_id", "vendor_id", "quantity", "price_at_purchase", "status", "created_at"],
+                  "filter": { "vendor": { "user_id": { "_eq": "X-Hasura-User-Id" } } }
+                },
+                "comment": "Vendor can only see their own order items"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["id", "order_id", "product_id", "vendor_id", "quantity", "price_at_purchase", "status", "created_at"],
+                  "filter": {}
+                },
+                "comment": ""
+              }
+            ],
+            "insert_permissions": [
+              {
+                "role": "super_admin",
+                "permission": {
+                  "check": {},
+                  "columns": ["id", "order_id", "product_id", "vendor_id", "quantity", "price_at_purchase", "status", "created_at"]
+                },
+                "comment": ""
+              }
+            ],
+            "update_permissions": [
+              {
+                "role": "vendor",
+                "permission": {
+                  "columns": ["status"],
+                  "filter": { "vendor": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                  "check": {}
+                },
+                "comment": "Vendor can only update their own order items"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["order_id", "product_id", "vendor_id", "quantity", "price_at_purchase", "status"],
+                  "filter": {},
+                  "check": {}
+                },
+                "comment": ""
+              }
+            ],
+            "delete_permissions": [
+              {
+                "role": "super_admin",
+                "permission": { "filter": {} },
+                "comment": ""
+              }
+            ]
+          },
+          {
+            "table": { "name": "orders", "schema": "public" },
+            "object_relationships": [
+              {
+                "name": "user",
+                "using": { "foreign_key_constraint_on": "user_id" },
+                "comment": ""
+              },
+              {
+                "name": "coupon",
+                "using": { "foreign_key_constraint_on": "coupon_id" },
+                "comment": ""
+              }
+            ],
+            "array_relationships": [
+              {
+                "name": "order_items",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "column": "order_id",
+                    "table": { "name": "order_items", "schema": "public" }
+                  }
+                },
+                "comment": ""
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "client",
+                "permission": {
+                  "columns": ["id", "user_id", "status", "total_amount", "shipping_address", "payment_method", "payment_status", "payment_id", "coupon_id", "coupon_discount", "created_at", "updated_at"],
+                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } }
+                },
+                "comment": "Client can only see their own orders"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["id", "user_id", "status", "total_amount", "shipping_address", "payment_method", "payment_status", "payment_id", "coupon_id", "coupon_discount", "created_at", "updated_at"],
+                  "filter": {}
+                },
+                "comment": ""
+              }
+            ],
+            "insert_permissions": [
+              {
+                "role": "client",
+                "permission": {
+                  "check": {},
+                  "set": {
+                    "user_id": "x-hasura-user-id",
+                    "status": "pending",
+                    "payment_status": "unpaid",
+                    "total_amount": "0"
+                  },
+                  "columns": ["shipping_address", "payment_method", "coupon_id", "coupon_discount"]
+                },
+                "comment": "Client can create only their own pending/unpaid order"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "check": {},
+                  "columns": ["id", "user_id", "status", "total_amount", "shipping_address", "payment_method", "payment_status", "payment_id", "coupon_id", "coupon_discount", "created_at", "updated_at"]
+                },
+                "comment": ""
+              }
+            ],
+            "update_permissions": [
+              {
+                "role": "client",
+                "permission": {
+                  "columns": ["status", "shipping_address", "payment_method"],
+                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                  "check": { "status": { "_in": ["pending", "cancelled"] } }
+                },
+                "comment": "Client can only update own order contact details or cancel while pending"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["user_id", "status", "total_amount", "shipping_address", "payment_method", "payment_status", "payment_id", "coupon_id", "coupon_discount"],
+                  "filter": {},
+                  "check": {}
+                },
+                "comment": ""
+              }
+            ],
+            "delete_permissions": [
+              {
+                "role": "super_admin",
+                "permission": { "filter": {} },
+                "comment": ""
+              }
+            ]
+          },
+          {
+            "table": { "name": "products", "schema": "public" },
+            "object_relationships": [
+              {
+                "name": "vendor",
+                "using": { "foreign_key_constraint_on": "vendor_id" },
+                "comment": ""
+              },
+              {
+                "name": "category",
+                "using": { "foreign_key_constraint_on": "category_id" },
+                "comment": ""
+              }
+            ],
+            "array_relationships": [
+              {
+                "name": "reviews",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "column": "product_id",
+                    "table": { "name": "reviews", "schema": "public" }
+                  }
+                },
+                "comment": ""
+              },
+              {
+                "name": "order_items",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "column": "product_id",
+                    "table": { "name": "order_items", "schema": "public" }
+                  }
+                },
+                "comment": ""
+              },
+              {
+                "name": "cart_items",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "column": "product_id",
+                    "table": { "name": "cart_items", "schema": "public" }
+                  }
+                },
+                "comment": ""
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "public",
+                "permission": {
+                  "columns": ["id", "vendor_id", "category_id", "name", "description", "price", "sale_price", "stock", "images", "is_active", "created_at", "updated_at"],
+                  "allow_aggregations": true,
+                  "filter": { "is_active": { "_eq": true } }
+                },
+                "comment": "Public read-only access to active products"
+              },
+              {
+                "role": "client",
+                "permission": {
+                  "columns": ["id", "vendor_id", "category_id", "name", "description", "price", "sale_price", "stock", "images", "is_active", "created_at", "updated_at"],
+                  "allow_aggregations": true,
+                  "filter": {
+                    "_and": [
+                      { "is_active": { "_eq": true } },
+                      { "vendor": { "is_approved": { "_eq": true } } }
+                    ]
+                  }
+                },
+                "comment": "Client read-only access to active products from approved vendors"
+              },
+              {
+                "role": "vendor",
+                "permission": {
+                  "columns": ["id", "vendor_id", "category_id", "name", "description", "price", "sale_price", "stock", "images", "is_active", "moderation_status", "moderated_by", "moderated_at", "moderation_notes", "created_at", "updated_at"],
+                  "allow_aggregations": true,
+                  "filter": { "vendor": { "user_id": { "_eq": "X-Hasura-User-Id" } } }
+                },
+                "comment": "Vendor can only see their own products"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["id", "vendor_id", "category_id", "name", "description", "price", "sale_price", "stock", "images", "is_active", "moderation_status", "moderated_by", "moderated_at", "moderation_notes", "created_at", "updated_at"],
+                  "allow_aggregations": true,
+                  "filter": {}
+                },
+                "comment": ""
+              }
+            ],
+            "insert_permissions": [
+              {
+                "role": "vendor",
+                "permission": {
+                  "check": {
+                    "_and": [
+                      { "vendor": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                      { "is_active": { "_eq": false } },
+                      { "moderation_status": { "_eq": "pending" } },
+                      { "moderated_by": { "_is_null": true } },
+                      { "moderated_at": { "_is_null": true } }
+                    ]
+                  },
+                  "set": {
+                    "is_active": false,
+                    "moderation_status": "pending"
+                  },
+                  "columns": ["vendor_id", "category_id", "name", "description", "price", "sale_price", "stock", "images", "moderation_notes"]
+                },
+                "comment": "Vendor can only add pending products to their own shop"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "check": {},
+                  "columns": ["id", "vendor_id", "category_id", "name", "description", "price", "sale_price", "stock", "images", "is_active", "moderation_status", "moderated_by", "moderated_at", "moderation_notes", "created_at", "updated_at"]
+                },
+                "comment": ""
+              }
+            ],
+            "update_permissions": [
+              {
+                "role": "vendor",
+                "permission": {
+                  "columns": ["category_id", "name", "description", "price", "sale_price", "stock", "images", "moderation_notes"],
+                  "filter": { "vendor": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                  "check": {}
+                },
+                "comment": "Vendor can only update non-moderation fields on own products"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["vendor_id", "category_id", "name", "description", "price", "sale_price", "stock", "images", "is_active", "moderation_status", "moderated_by", "moderated_at", "moderation_notes"],
+                  "filter": {},
+                  "check": {}
+                },
+                "comment": ""
+              }
+            ],
+            "delete_permissions": [
+              {
+                "role": "vendor",
+                "permission": { "filter": { "vendor": { "user_id": { "_eq": "X-Hasura-User-Id" } } } },
+                "comment": "Vendor can only delete their own products"
+              },
+              {
+                "role": "super_admin",
+                "permission": { "filter": {} },
+                "comment": ""
+              }
+            ]
+          },
+          {
+            "table": { "name": "reviews", "schema": "public" },
+            "object_relationships": [
+              {
+                "name": "user",
+                "using": { "foreign_key_constraint_on": "user_id" },
+                "comment": ""
+              },
+              {
+                "name": "product",
+                "using": { "foreign_key_constraint_on": "product_id" },
+                "comment": ""
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "client",
+                "permission": {
+                  "columns": ["id", "user_id", "product_id", "rating", "comment", "created_at"],
+                  "relationships": ["user", "product"],
+                  "allow_aggregations": true,
+                  "filter": {}
+                },
+                "comment": "Client read-only access to all reviews with user and product relationships"
+              },
+              {
+                "role": "public",
+                "permission": {
+                  "columns": ["id", "user_id", "product_id", "rating", "comment", "created_at"],
+                  "relationships": ["user", "product"],
+                  "allow_aggregations": true,
+                  "filter": {}
+                },
+                "comment": "Public read-only access to all reviews with user and product relationships"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["id", "user_id", "product_id", "rating", "comment", "created_at"],
+                  "filter": {}
+                },
+                "comment": ""
+              }
+            ],
+            "insert_permissions": [
+              {
+                "role": "client",
+                "permission": {
+                  "check": { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                  "columns": ["product_id", "rating", "comment"]
+                },
+                "comment": "Client can only leave reviews for products"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "check": {},
+                  "columns": ["id", "user_id", "product_id", "rating", "comment", "created_at"]
+                },
+                "comment": ""
+              }
+            ],
+            "update_permissions": [
+              {
+                "role": "client",
+                "permission": {
+                  "columns": ["rating", "comment"],
+                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                  "check": {}
+                },
+                "comment": "Client can only update their own reviews"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["user_id", "product_id", "rating", "comment"],
+                  "filter": {},
+                  "check": {}
+                },
+                "comment": ""
+              }
+            ],
+            "delete_permissions": [
+              {
+                "role": "client",
+                "permission": { "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                "comment": "Client can only delete their own reviews"
+              },
+              {
+                "role": "super_admin",
+                "permission": { "filter": {} },
+                "comment": ""
+              }
+            ]
+          },
+          {
+            "table": { "name": "users", "schema": "public" },
+            "object_relationships": [
+              {
+                "name": "vendor",
+                "using": {
+                  "manual_configuration": {
+                    "remote_table": { "name": "vendors", "schema": "public" },
+                    "column_mapping": { "id": "user_id" },
+                    "insertion_order": null
+                  }
+                },
+                "comment": ""
+              }
+            ],
+            "insert_permissions": [
+              {
+                "role": "super_admin",
+                "permission": {
+                  "check": {},
+                  "columns": ["avatar_url", "email", "name", "phone", "role", "created_at", "updated_at", "id"]
+                },
+                "comment": ""
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "client",
+                "permission": {
+                  "columns": ["avatar_url", "email", "name", "phone", "role", "created_at", "updated_at", "id"],
+                  "filter": { "id": { "_eq": "X-Hasura-User-Id" } }
+                },
+                "comment": "Client can only see their own user profile"
+              },
+              {
+                "role": "public",
+                "permission": {
+                  "columns": ["id", "name", "avatar_url"],
+                  "filter": {}
+                },
+                "comment": "Public can access basic user info (name, avatar) for reviews"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["avatar_url", "email", "name", "phone", "role", "created_at", "updated_at", "id"],
+                  "filter": {}
+                },
+                "comment": ""
+              }
+            ],
+            "update_permissions": [
+              {
+                "role": "client",
+                "permission": {
+                  "columns": ["avatar_url", "email", "name", "phone"],
+                  "filter": { "id": { "_eq": "X-Hasura-User-Id" } },
+                  "check": {}
+                },
+                "comment": "Client can only update their own user profile"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["avatar_url", "email", "name", "phone", "role", "created_at", "updated_at", "id"],
+                  "filter": {},
+                  "check": {}
+                },
+                "comment": ""
+              }
+            ],
+            "delete_permissions": [
+              {
+                "role": "client",
+                "permission": { "filter": { "id": { "_eq": "X-Hasura-User-Id" } } },
+                "comment": "Client can only delete their own user profile"
+              },
+              {
+                "role": "super_admin",
+                "permission": { "filter": {} },
+                "comment": ""
+              }
+            ]
+          },
+          {
+            "table": { "name": "vendors", "schema": "public" },
+            "object_relationships": [
+              {
+                "name": "user",
+                "using": { "foreign_key_constraint_on": "user_id" },
+                "comment": ""
+              }
+            ],
+            "array_relationships": [
+              {
+                "name": "products",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "column": "vendor_id",
+                    "table": { "name": "products", "schema": "public" }
+                  }
+                },
+                "comment": ""
+              },
+              {
+                "name": "order_items",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "column": "vendor_id",
+                    "table": { "name": "order_items", "schema": "public" }
+                  }
+                },
+                "comment": ""
+              },
+              {
+                "name": "coupons",
+                "using": {
+                  "foreign_key_constraint_on": {
+                    "column": "vendor_id",
+                    "table": { "name": "coupons", "schema": "public" }
+                  }
+                },
+                "comment": ""
+              }
+            ],
+            "insert_permissions": [
+              {
+                "role": "vendor",
+                "permission": {
+                  "check": {
+                    "_and": [
+                      { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                      { "is_approved": { "_eq": false } }
+                    ]
+                  },
+                  "columns": ["description", "logo_url", "shop_name", "user_id"]
+                },
+                "comment": "Vendor can only create their own vendor profile"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "check": {},
+                  "columns": ["is_approved", "description", "logo_url", "shop_name", "created_at", "updated_at", "id", "user_id"]
+                },
+                "comment": ""
+              }
+            ],
+            "select_permissions": [
+              {
+                "role": "public",
+                "permission": {
+                  "columns": ["description", "logo_url", "shop_name", "id"],
+                  "filter": { "is_approved": { "_eq": true } }
+                },
+                "comment": "Public can read approved vendor public profile fields"
+              },
+              {
+                "role": "client",
+                "permission": {
+                  "columns": ["description", "logo_url", "shop_name", "id"],
+                  "filter": { "is_approved": { "_eq": true } }
+                },
+                "comment": "Client can only read approved vendor public profile fields"
+              },
+              {
+                "role": "vendor",
+                "permission": {
+                  "columns": ["is_approved", "description", "logo_url", "shop_name", "created_at", "updated_at", "id", "user_id"],
+                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } }
+                },
+                "comment": "Vendor can only see their own vendor profile"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["is_approved", "description", "logo_url", "shop_name", "created_at", "updated_at", "id", "user_id"],
+                  "filter": {}
+                },
+                "comment": ""
+              }
+            ],
+            "update_permissions": [
+              {
+                "role": "vendor",
+                "permission": {
+                  "columns": ["description", "logo_url", "shop_name"],
+                  "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } },
+                  "check": { "user_id": { "_eq": "X-Hasura-User-Id" } }
+                },
+                "comment": "Vendor can only update their own vendor profile"
+              },
+              {
+                "role": "super_admin",
+                "permission": {
+                  "columns": ["is_approved", "description", "logo_url", "shop_name", "created_at", "updated_at", "id", "user_id"],
+                  "filter": {},
+                  "check": {}
+                },
+                "comment": ""
+              }
+            ],
+            "delete_permissions": [
+              {
+                "role": "vendor",
+                "permission": { "filter": { "user_id": { "_eq": "X-Hasura-User-Id" } } },
+                "comment": "Vendor can only delete their own vendor profile"
+              },
+              {
+                "role": "super_admin",
+                "permission": { "filter": {} },
+                "comment": ""
+              }
+            ]
+          }
+        ],
+        "functions": [],
+        "configuration": {
+          "connection_info": {
+            "database_url": {
+              "from_env": "HASURA_GRAPHQL_DATABASE_URL"
+            },
+            "isolation_level": "read-committed",
+            "use_prepared_statements": false
+          }
+        }
+      }
+    ],
+    "inherited_roles": []
+  }
+}
