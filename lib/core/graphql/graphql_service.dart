@@ -65,6 +65,21 @@ class GraphQLService {
       },
     );
 
+    final userIdLink = AuthLink(
+      headerKey: 'x-hasura-user-id',
+      getToken: () async {
+        final session = Supabase.instance.client.auth.currentSession;
+        if (session != null) {
+          final userId = session.user?.id;
+          if (userId != null) {
+            debugPrint('[GraphQLService] Setting X-Hasura-User-Id: $userId');
+            return userId;
+          }
+        }
+        return null;
+      },
+    );
+
     final wsLink = WebSocketLink(
       AppConstants.hasuraWsEndpoint,
       config: SocketClientConfig(
@@ -80,6 +95,10 @@ class GraphQLService {
             if (role != null) {
               headers['x-hasura-role'] = role;
             }
+            final userId = session.user?.id;
+            if (userId != null) {
+              headers['x-hasura-user-id'] = userId;
+            }
             return {'headers': headers};
           }
 
@@ -94,7 +113,7 @@ class GraphQLService {
     final link = Link.split(
       (request) => request.isSubscription,
       wsLink,
-      roleLink.concat(authLink).concat(httpLink),
+      userIdLink.concat(roleLink).concat(authLink).concat(httpLink),
     );
 
     return GraphQLClient(

@@ -107,6 +107,51 @@ class ProductQueries {
     }
   ''';
 
+  /// Fetch single product by ID using filtered query (respects RLS better than _by_pk)
+  static const String getProductByIdFiltered = r'''
+    query GetProductByIdFiltered($id: uuid!) {
+      products(where: { id: { _eq: $id } }, limit: 1) {
+        id
+        name
+        description
+        price
+        compare_at_price: sale_price
+        stock_qty: stock
+        images
+        is_active
+        created_at
+        category {
+          id
+          name
+          slug
+        }
+        vendor {
+          id
+          shop_name
+          shop_description: description
+          logo_url
+        }
+        reviews(order_by: { created_at: desc }, limit: 10) {
+          id
+          rating
+          comment
+          created_at
+          user {
+            id
+            name
+            avatar_url
+          }
+        }
+        reviews_aggregate {
+          aggregate {
+            avg { rating }
+            count
+          }
+        }
+      }
+    }
+  ''';
+
   /// Fetch all categories
   static const String getCategories = r'''
     query GetCategories {

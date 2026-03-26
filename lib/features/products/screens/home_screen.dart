@@ -469,142 +469,155 @@ class _ProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return GestureDetector(
-      onTap: () {
-        Navigator.of(context).pushNamed('/product', arguments: product.id);
-      },
-      child: SizedBox(
-        width: 160,
-        child: Card(
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Image ────────────────────────────────────
-              Expanded(
-                flex: 3,
-                child: Stack(
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      child: CachedNetworkImage(
-                        imageUrl: product.primaryImage,
-                        fit: BoxFit.cover,
-                        placeholder: (_, _) => Container(
-                          color: Colors.grey[100],
-                          child: const Center(
-                            child: Icon(Icons.image, color: Colors.grey),
-                          ),
-                        ),
-                        errorWidget: (_, _, _) => Container(
-                          color: Colors.grey[100],
-                          child: const Icon(
-                            Icons.broken_image,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (product.isOnSale)
-                      Positioned(
-                        top: 8,
-                        left: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.error,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            '-${product.discountPercentage.toStringAsFixed(0)}%',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-
-              // ── Details ──────────────────────────────────
-              Expanded(
-                flex: 2,
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          debugPrint(
+            'Product card tapped: ${product.name} (ID: ${product.id})',
+          );
+          try {
+            Navigator.of(context).pushNamed('/product', arguments: product.id);
+          } catch (e) {
+            debugPrint('Navigation error: $e');
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Navigation error: $e')));
+          }
+        },
+        child: SizedBox(
+          width: 160,
+          child: Card(
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Image ────────────────────────────────────
+                Expanded(
+                  flex: 3,
+                  child: Stack(
                     children: [
-                      Text(
-                        product.name,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const Spacer(),
-
-                      // Rating
-                      if (product.avgRating != null)
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.star,
-                              size: 14,
-                              color: Colors.amber[700],
-                            ),
-                            const SizedBox(width: 2),
-                            Text(
-                              product.avgRating!.toStringAsFixed(1),
-                              style: theme.textTheme.bodySmall,
-                            ),
-                            Text(
-                              ' (${product.reviewCount})',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurface.withValues(
-                                  alpha: 0.5,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      const SizedBox(height: 4),
-
-                      // Price
-                      Row(
-                        children: [
-                          Text(
-                            '৳${product.price.toStringAsFixed(0)}',
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.primary,
+                      SizedBox(
+                        width: double.infinity,
+                        child: CachedNetworkImage(
+                          imageUrl: product.primaryImage,
+                          fit: BoxFit.cover,
+                          placeholder: (_, _) => Container(
+                            color: Colors.grey[100],
+                            child: const Center(
+                              child: Icon(Icons.image, color: Colors.grey),
                             ),
                           ),
-                          if (product.isOnSale) ...[
-                            const SizedBox(width: 6),
-                            Text(
-                              '৳${product.compareAtPrice!.toStringAsFixed(0)}',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                decoration: TextDecoration.lineThrough,
-                                color: theme.colorScheme.onSurface.withValues(
-                                  alpha: 0.4,
-                                ),
+                          errorWidget: (_, _, _) => Container(
+                            color: Colors.grey[100],
+                            child: const Icon(
+                              Icons.broken_image,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (product.isOnSale)
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.error,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '-${product.discountPercentage.toStringAsFixed(0)}%',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                          ],
-                        ],
-                      ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
-              ),
-            ],
+
+                // ── Details ──────────────────────────────────
+                Expanded(
+                  flex: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          product.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const Spacer(),
+
+                        // Rating
+                        if (product.avgRating != null)
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.star,
+                                size: 14,
+                                color: Colors.amber[700],
+                              ),
+                              const SizedBox(width: 2),
+                              Text(
+                                product.avgRating!.toStringAsFixed(1),
+                                style: theme.textTheme.bodySmall,
+                              ),
+                              Text(
+                                ' (${product.reviewCount})',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        const SizedBox(height: 4),
+
+                        // Price
+                        Row(
+                          children: [
+                            Text(
+                              '৳${product.price.toStringAsFixed(0)}',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                            if (product.isOnSale) ...[
+                              const SizedBox(width: 6),
+                              Text(
+                                '৳${product.compareAtPrice!.toStringAsFixed(0)}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  decoration: TextDecoration.lineThrough,
+                                  color: theme.colorScheme.onSurface.withValues(
+                                    alpha: 0.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

@@ -249,9 +249,7 @@ class _ProductGridCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: () {
-        Navigator.of(
-          context,
-        ).pushNamed('/product-detail', arguments: product.id);
+        Navigator.of(context).pushNamed('/product', arguments: product.id);
       },
       child: Card(
         clipBehavior: Clip.antiAlias,

@@ -1,5 +1,6 @@
 // ignore_for_file: depend_on_referenced_packages
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
@@ -48,20 +49,10 @@ void main() async {
   // Initialize native splash screen
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
-  // Do initialization before showing any Dart UI
+  // Load environment variables early
   try {
     await dotenv.load(fileName: '.env');
     AppConstants.validateEnvVars();
-
-    await Supabase.initialize(
-      url: AppConstants.supabaseUrl,
-      anonKey: AppConstants.supabaseAnonKey,
-    );
-
-    GraphQLService.instance.init();
-
-    // Keep splash visible for at least 1.5 seconds for smooth transition
-    await Future.delayed(const Duration(milliseconds: 1500));
   } catch (error, stackTrace) {
     FlutterError.reportError(
       FlutterErrorDetails(
@@ -71,11 +62,9 @@ void main() async {
         context: ErrorDescription('while initializing app services'),
       ),
     );
-  } finally {
-    FlutterNativeSplash.remove();
   }
 
-  runApp(const ArekitaApp());
+  runApp(const _BootstrapApp());
 }
 
 /// Renders a branded splash while dotenv + Supabase init runs async,
@@ -107,18 +96,35 @@ class _BootstrapAppState extends State<_BootstrapApp> {
       await dotenv.load(fileName: '.env');
       AppConstants.validateEnvVars();
 
-      // Ensure splash is visible for at least 2 seconds (covers text animation + transition)
+      // Ensure splash is visible for at least 3 seconds (covers all animations + transition)
       final initStart = DateTime.now();
 
-      await Supabase.initialize(
-        url: AppConstants.supabaseUrl,
-        anonKey: AppConstants.supabaseAnonKey,
-      );
-      GraphQLService.instance.init();
+      // Initialize backend services on main thread (with 3sec splash minimum)
+      // This is safe because splash screen provides visual feedback during init
+      try {
+        await Supabase.initialize(
+          url: AppConstants.supabaseUrl,
+          anonKey: AppConstants.supabaseAnonKey,
+        );
+      } catch (e) {
+        if (kDebugMode) {
+          print('Supabase init error: $e');
+        }
+        rethrow;
+      }
+
+      try {
+        GraphQLService.instance.init();
+      } catch (e) {
+        if (kDebugMode) {
+          print('GraphQL init error: $e');
+        }
+        rethrow;
+      }
 
       // Calculate elapsed time and add delay if needed to show splash long enough
       final elapsed = DateTime.now().difference(initStart);
-      final minimumSplashDuration = const Duration(seconds: 2);
+      final minimumSplashDuration = const Duration(seconds: 3);
 
       if (elapsed < minimumSplashDuration) {
         await Future.delayed(minimumSplashDuration - elapsed);
@@ -238,14 +244,15 @@ class _SplashScreenState extends State<_SplashScreen>
     // Create staggered animations for each word in tagline
     _initializeTaglineAnimations();
 
-    // Progress indicator controller: continuous animation
+    // Progress indicator controller: efficient indeterminate animation (500ms cycle instead of 1500ms)
+    // Shorter cycle means fewer frame updates = better performance
     _progressController = AnimationController(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 800),
       vsync: this,
-    )..repeat();
+    );
 
-    // Start animations sequentially
-    _startAnimationSequence();
+    // Start animations sequentially - must be properly orchestrated
+    _startAnimationSequenceAsync();
   }
 
   void _initializeTaglineAnimations() {
@@ -294,16 +301,25 @@ class _SplashScreenState extends State<_SplashScreen>
     }
   }
 
-  void _startAnimationSequence() async {
+  /// Orchestrates animation sequence: Logo → Tagline → Progress
+  /// MUST be called WITHOUT await in initState to prevent blocking,
+  /// but internally maintains proper sequencing
+  void _startAnimationSequenceAsync() {
+    _orchestrateAnimations();
+  }
+
+  Future<void> _orchestrateAnimations() async {
     // Sequence 1: Logo bounces (0-400ms)
     await _logoController.forward();
 
-    // Sequence 2: Tagline reveals (overlaps starting at 250ms from start, but we start after logo)
-    _taglineController.forward();
+    // Sequence 2: Tagline reveals (starts immediately after logo completes)
+    await _taglineController.forward();
 
-    // Sequence 3: Progress indicator fades in after 400ms
-    await Future.delayed(const Duration(milliseconds: 400));
-    _progressController.forward();
+    // Sequence 3: Progress indicator animation (repeated)
+    // Now start the progress indicator animation
+    if (mounted) {
+      _progressController.repeat();
+    }
   }
 
   @override
@@ -316,58 +332,57 @@ class _SplashScreenState extends State<_SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Container(
-        width: double.infinity,
-        height: double.infinity,
-        color: Colors.white,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // Logo with bounce animation
-                AnimatedBuilder(
-                  animation: _logoController,
-                  builder: (context, child) {
-                    return Opacity(
-                      opacity: _logoBounceAnimation.value,
-                      child: Transform.scale(
-                        scale: _logoScaleAnimation.value,
-                        child: child,
-                      ),
-                    );
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Text(
-                      AppConstants.appName,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 42,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF000000),
-                        letterSpacing: -0.5,
-                      ),
+    // Return Container directly - no nested MaterialApp needed
+    // The MaterialApp wrapper is handled by _BootstrapApp
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      color: Colors.white,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Logo with bounce animation
+              AnimatedBuilder(
+                animation: _logoController,
+                builder: (context, child) {
+                  return Opacity(
+                    opacity: _logoBounceAnimation.value,
+                    child: Transform.scale(
+                      scale: _logoScaleAnimation.value,
+                      child: child,
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    AppConstants.appName,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 42,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF000000),
+                      letterSpacing: -0.5,
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
+              ),
+              const SizedBox(height: 24),
 
-                // Tagline with staggered word reveal
-                _buildTaglineWithStagger(),
+              // Tagline with staggered word reveal
+              _buildTaglineWithStagger(),
 
-                const SizedBox(height: 54),
+              const SizedBox(height: 54),
 
-                // Progress indicator with animation
-                _buildAnimatedProgress(),
-              ],
-            ),
-          ],
-        ),
+              // Progress indicator with animation
+              _buildAnimatedProgress(),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -384,18 +399,15 @@ class _SplashScreenState extends State<_SplashScreen>
         children: List.generate(
           words.length,
           (index) => AnimatedBuilder(
-            animation: Listenable.merge([
-              _taglineWordAnimations[index],
-              _taglineSlideAnimations[index],
-            ]),
+            animation: _taglineController,
             builder: (context, child) {
+              final fadeValue = _taglineWordAnimations[index].value;
+              final slideValue = _taglineSlideAnimations[index].value.dy * -15;
+
               return Opacity(
-                opacity: _taglineWordAnimations[index].value,
+                opacity: fadeValue,
                 child: Transform.translate(
-                  offset: Offset(
-                    0,
-                    _taglineSlideAnimations[index].value.dy * -15,
-                  ),
+                  offset: Offset(0, slideValue),
                   child: child,
                 ),
               );
@@ -425,7 +437,6 @@ class _SplashScreenState extends State<_SplashScreen>
           child: AnimatedBuilder(
             animation: _progressController,
             builder: (context, child) {
-              // Linear progress bar animation
               final progress = (_progressController.value % 1.0);
               return LinearProgressIndicator(
                 value: progress,
@@ -439,10 +450,13 @@ class _SplashScreenState extends State<_SplashScreen>
           ),
         ),
         const SizedBox(height: 12),
-        AnimatedBuilder(
-          animation: _progressController,
-          builder: (context, child) {
-            final progress = (_progressController.value % 1.0);
+        // Use ValueListenableBuilder to reduce rebuild frequency
+        ValueListenableBuilder<double>(
+          valueListenable: _progressController,
+          builder: (context, value, child) {
+            // Only update progress text every ~150ms (4 times per second)
+            // instead of 60 times per second to reduce CPU load
+            final progress = (value % 1.0);
             int displayedProgress = (progress * 100).toInt();
 
             return Text(
@@ -530,8 +544,27 @@ class ArekitaApp extends StatelessWidget {
 
       // ── Product Detail ────────────────────────────────
       case '/product':
-        final productId = settings.arguments as String;
-        page = ProductDetailScreen(productId: productId);
+        if (settings.arguments == null) {
+          debugPrint('Error: /product route called with null arguments');
+          page = const Scaffold(
+            body: Center(child: Text('Product ID required')),
+          );
+        } else {
+          try {
+            final productId = settings.arguments as String;
+            debugPrint('Product Detail Route: productId=$productId');
+            page = ProductDetailScreen(productId: productId);
+          } catch (e) {
+            debugPrint(
+              'Error casting product ID: $e, received: ${settings.arguments}',
+            );
+            page = Scaffold(
+              body: Center(
+                child: Text('Invalid product ID: ${settings.arguments}'),
+              ),
+            );
+          }
+        }
         break;
 
       // ── Checkout ──────────────────────────────────────

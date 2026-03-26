@@ -12,7 +12,6 @@
 .swiftpm/
 migrate_working_dir/
 database/
-Users\akram\arekta_e-comm_app mobile\mobile_apps.code-workspace
 
 # Environment secrets
 .env
@@ -23,6 +22,7 @@ Users\akram\arekta_e-comm_app mobile\mobile_apps.code-workspace
 *.ipr
 *.iws
 .idea/
+.md
 
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line

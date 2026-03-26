@@ -17,7 +17,7 @@ class ProductDetailScreen extends StatelessWidget {
     return Scaffold(
       body: Query(
         options: QueryOptions(
-          document: gql(ProductQueries.getProductById),
+          document: gql(ProductQueries.getProductByIdFiltered),
           variables: {'id': productId},
           fetchPolicy: FetchPolicy.networkOnly,
         ),
@@ -26,10 +26,60 @@ class ProductDetailScreen extends StatelessWidget {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final data = result.data?['products_by_pk'];
-          if (data == null) {
-            return const Center(child: Text('Product not found'));
+          if (result.hasException) {
+            debugPrint('Product Detail Query Error: ${result.exception}');
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('Error loading product'),
+                  const SizedBox(height: 8),
+                  Text(
+                    result.exception?.toString() ?? 'Unknown error',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            );
           }
+
+          debugPrint('Product Detail Query Data: ${result.data}');
+          final products = result.data?['products'] as List<dynamic>?;
+
+          if (products == null || products.isEmpty) {
+            debugPrint('Product not found - ID: $productId');
+            debugPrint(
+              'Check: Vendor must be approved. Use Admin > Vendor Approvals',
+            );
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('Product not found'),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Product ID: $productId',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Ensure vendor is approved in Admin > Vendor Approvals',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11, color: Colors.orange),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => refetch?.call(),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final data = products.first as Map<String, dynamic>;
 
           final product = ProductModel.fromJson(data as Map<String, dynamic>);
           final reviews =

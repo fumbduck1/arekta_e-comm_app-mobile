@@ -127,6 +127,8 @@ class AdminProductModerationScreen extends StatelessWidget {
                         const SizedBox(height: 10),
                         _ModerationActions(
                           productId: p['id'] as String,
+                          vendorApproved:
+                              (vendor?['is_approved'] as bool?) ?? false,
                           adminId: adminId,
                           onModerated: () => refetch?.call(),
                         ),
@@ -169,11 +171,13 @@ class _ModerationStatusChip extends StatelessWidget {
 /// Approve + Reject buttons. Rejection opens a dialog for optional notes.
 class _ModerationActions extends StatelessWidget {
   final String productId;
+  final bool vendorApproved;
   final String adminId;
   final VoidCallback onModerated;
 
   const _ModerationActions({
     required this.productId,
+    required this.vendorApproved,
     required this.adminId,
     required this.onModerated,
   });
@@ -271,7 +275,7 @@ class _ModerationActions extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             FilledButton.icon(
-              onPressed: isLoading
+              onPressed: (isLoading || !vendorApproved)
                   ? null
                   : () => runMutation({
                       'id': productId,
@@ -287,8 +291,25 @@ class _ModerationActions extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.verified_outlined),
-              label: const Text('Approve & Publish'),
+              label: Text(
+                vendorApproved ? 'Approve & Publish' : 'Approve Vendor First',
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: vendorApproved ? null : Colors.grey,
+              ),
             ),
+            if (!vendorApproved)
+              Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Tooltip(
+                  message: 'Vendor must be approved before publishing products',
+                  child: Icon(
+                    Icons.info_outline,
+                    size: 18,
+                    color: Colors.orange.shade700,
+                  ),
+                ),
+              ),
           ],
         );
       },
