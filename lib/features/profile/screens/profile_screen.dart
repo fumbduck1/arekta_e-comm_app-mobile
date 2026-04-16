@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../../../core/utils/modal_navigation.dart';
 import '../../../models/user_model.dart';
 import '../../auth/auth_provider.dart';
+import '../address_provider.dart';
+import '../widgets/addresses_modal.dart';
 import '../widgets/profile_edit_form.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -116,50 +118,14 @@ class ProfileScreen extends StatelessWidget {
                   icon: Icons.location_on_outlined,
                   title: 'Shipping Addresses',
                   onTap: () {
-                    // Show shipping addresses modal
+                    final clientUser = user;
+
                     ModalNavigation.showAddressesModal(
                       context,
                       title: 'Shipping Addresses',
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(24.0),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.location_on_outlined,
-                                size: 48,
-                                color: Colors.grey,
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'No addresses yet',
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Add a shipping address to get started',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                              const SizedBox(height: 24),
-                              ElevatedButton(
-                                onPressed: () {
-                                  // TODO: Implement add address form
-                                },
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF6C63FF),
-                                ),
-                                child: const Text('Add Address'),
-                              ),
-                            ],
-                          ),
-                        ),
+                      child: ChangeNotifierProvider(
+                        create: (_) => AddressProvider(),
+                        child: AddressesModal(userId: clientUser.id),
                       ),
                     );
                   },

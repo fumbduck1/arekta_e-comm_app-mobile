@@ -28,9 +28,7 @@ class UserModel {
   factory UserModel.fromJson(Map<String, dynamic> json) {
     try {
       final roleString = json['role'] as String? ?? 'client';
-      debugPrint('[UserModel] Parsing role from JSON: "$roleString"');
       final role = UserRole.fromString(roleString);
-      debugPrint('[UserModel] Parsed role enum: $role');
 
       final id = json['id'] as String? ?? '';
       final email = json['email'] as String? ?? '';

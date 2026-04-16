@@ -2,6 +2,65 @@
 class OrderQueries {
   OrderQueries._();
 
+  /// OPTIMIZED: Get user purchase history using view
+  /// Replaces multiple JOINs with single aggregated view query
+  static const String getUserPurchaseHistory = r'''
+    query GetUserPurchaseHistory(
+      $userId: uuid!,
+      $limit: Int,
+      $offset: Int
+    ) {
+      vw_user_purchase_history(
+        where: { user_id: { _eq: $userId } },
+        limit: $limit,
+        offset: $offset,
+        order_by: { created_at: desc }
+      ) {
+        order_id
+        user_id
+        status
+        total_amount
+        payment_status
+        payment_id
+        shipping_address
+        created_at
+        updated_at
+        item_count
+        items
+      }
+      vw_user_purchase_history_aggregate(
+        where: { user_id: { _eq: $userId } }
+      ) {
+        aggregate {
+          count
+        }
+      }
+    }
+  ''';
+
+  /// OPTIMIZED: Get order timeline using view
+  static const String getOrderTimeline = r'''
+    query GetOrderTimeline($userId: uuid!) {
+      vw_order_timeline(
+        where: { user_id: { _eq: $userId } },
+        order_by: { order_created_at: desc }
+      ) {
+        order_id
+        user_id
+        order_created_at
+        order_updated_at
+        order_status
+        total_amount
+        payment_status
+        shipping_address
+        item_count
+        vendor_count
+        items
+        fulfillment_time
+      }
+    }
+  ''';
+
   /// Get current user's orders
   static const String getOrders = r'''
     query GetOrders($limit: Int!, $offset: Int!, $status: String) {
@@ -109,6 +168,36 @@ class OrderQueries {
 class CouponQueries {
   CouponQueries._();
 
+  /// OPTIMIZED: Validate coupon using procedure
+  static const String validateCoupon = r'''
+    query ValidateCoupon($code: String!, $orderSubtotal: numeric!) {
+      validate_coupon_for_order(
+        p_coupon_code: $code,
+        p_order_subtotal: $orderSubtotal
+      ) {
+        is_valid
+        reason
+        discount_amount
+      }
+    }
+  ''';
+
+  /// Get active coupons for user
+  static const String getActiveCoupons = r'''
+    query GetActiveCoupons($orderSubtotal: numeric) {
+      get_active_coupons_for_user(p_order_subtotal: $orderSubtotal) {
+        coupon_id
+        code
+        discount_type
+        discount_value
+        min_order
+        expires_at
+        usage_remaining
+        description
+      }
+    }
+  ''';
+
   /// Look up a coupon by code
   static const String getCouponByCode = r'''
     query GetCouponByCode($code: String!) {
@@ -130,7 +219,32 @@ class CouponQueries {
 class OrderMutations {
   OrderMutations._();
 
-  /// Create a new order from the current cart
+  /// OPTIMIZED: Create order from cart using atomic procedure
+  /// Replaces multiple API calls with single transaction
+  /// Handles: stock validation, coupon processing, cart clearing
+  static const String createOrderFromCart = r'''
+    mutation CreateOrderFromCart(
+      $userId: uuid!,
+      $shippingAddress: String!,
+      $paymentMethod: String!,
+      $couponCode: String
+    ) {
+      create_order_from_cart(
+        p_user_id: $userId,
+        p_shipping_address: $shippingAddress,
+        p_payment_method: $paymentMethod,
+        p_coupon_code: $couponCode
+      ) {
+        order_id
+        total_amount
+        coupon_discount
+        status
+        message
+      }
+    }
+  ''';
+
+  /// Create a new order from the current cart (legacy)
   static const String createOrder = r'''
     mutation CreateOrder(
       $shippingAddress: String!,

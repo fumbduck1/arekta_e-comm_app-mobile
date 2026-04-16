@@ -350,6 +350,73 @@ class AddressProvider extends ChangeNotifier {
     }
   }
 
+  /// Set an address as default for the user.
+  Future<bool> setDefaultAddress(String addressId, String userId) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      const clearDefaultMutation = '''
+        mutation ClearDefaultAddress(\$userId: uuid!) {
+          update_addresses(
+            where: {user_id: {_eq: \$userId}}
+            _set: {is_default: false}
+          ) {
+            affected_rows
+          }
+        }
+      ''';
+
+      final clearResult = await GraphQLService.instance.client.value.mutate(
+        MutationOptions(
+          document: gql(clearDefaultMutation),
+          variables: {'userId': userId},
+        ),
+      );
+
+      if (clearResult.hasException) {
+        _errorMessage = clearResult.exception.toString();
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      const setDefaultMutation = '''
+        mutation SetDefaultAddress(\$id: uuid!) {
+          update_addresses_by_pk(
+            pk_columns: {id: \$id}
+            _set: {is_default: true}
+          ) {
+            id
+          }
+        }
+      ''';
+
+      final setResult = await GraphQLService.instance.client.value.mutate(
+        MutationOptions(
+          document: gql(setDefaultMutation),
+          variables: {'id': addressId},
+        ),
+      );
+
+      if (setResult.hasException) {
+        _errorMessage = setResult.exception.toString();
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      await fetchAddresses(userId);
+      return true;
+    } catch (e) {
+      _errorMessage = 'Failed to set default address: $e';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// Clear error message
   void clearError() {
     _errorMessage = null;

@@ -2,7 +2,28 @@
 class CartQueries {
   CartQueries._();
 
-  /// Get current user's cart with items
+  /// OPTIMIZED: Get cart summary using pre-aggregated view
+  /// Replaces multiple JOINs with single view query
+  /// Returns: item count, subtotal, total_discount, items array
+  static const String getCartSummary = r'''
+    query GetCartSummary($userId: uuid!) {
+      vw_user_cart_summary(
+        where: { user_id: { _eq: $userId } },
+        limit: 1
+      ) {
+        cart_id
+        user_id
+        item_count
+        subtotal
+        total_discount
+        items
+        created_at
+        updated_at
+      }
+    }
+  ''';
+
+  /// Get current user's cart with items (legacy - for comparison)
   static const String getCart = r'''
     query GetCart {
       carts(limit: 1) {
@@ -42,7 +63,7 @@ class CartMutations {
             data: {},
             on_conflict: {
               constraint: carts_user_id_key,
-              update_columns: [updated_at]
+              update_columns: [_PLACEHOLDER]
             }
           }
         },

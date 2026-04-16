@@ -100,12 +100,43 @@ class _AddressesModalState extends State<AddressesModal> {
           address: address,
           onEdit: () => _showAddressForm(context, address),
           onDelete: () => _confirmDelete(context, provider, address.id!),
-          onSetDefault: () {
-            // TODO: Implement set as default
-          },
+          onSetDefault: () => _setAsDefault(context, provider, address),
         );
       }).toList(),
     );
+  }
+
+  Future<void> _setAsDefault(
+    BuildContext context,
+    AddressProvider provider,
+    Address address,
+  ) async {
+    if (address.id == null || address.isDefault) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final success = await provider.setDefaultAddress(
+      address.id!,
+      widget.userId,
+    );
+    if (!mounted) return;
+
+    if (success) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Default address updated'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            provider.errorMessage ?? 'Failed to set default address',
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _showAddressForm(BuildContext context, dynamic address) {
@@ -241,6 +272,14 @@ class _AddressCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
+                if (!address.isDefault) ...[
+                  TextButton.icon(
+                    onPressed: onSetDefault,
+                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    label: const Text('Set Default'),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 TextButton.icon(
                   onPressed: onEdit,
                   icon: const Icon(Icons.edit_outlined, size: 18),

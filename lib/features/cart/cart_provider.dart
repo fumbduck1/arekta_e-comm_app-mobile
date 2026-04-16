@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../core/graphql/graphql_service.dart';
-import '../../core/graphql/queries/cart_queries.dart';
 import '../../models/cart_model.dart';
 
 class CartProvider extends ChangeNotifier {
@@ -18,80 +16,121 @@ class CartProvider extends ChangeNotifier {
   bool get isEmpty => _cart?.isEmpty ?? true;
   List<CartItemModel> get items => _cart?.items ?? [];
 
-  GraphQLClient get _client => GraphQLService.instance.client.value;
+  SupabaseClient get _supabase => Supabase.instance.client;
 
-  /// Fetch cart from server
+  Future<String?> _ensureCartId() async {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) {
+      return null;
+    }
+
+    final existing = await _supabase
+        .from('carts')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+    if (existing != null && existing['id'] != null) {
+      return existing['id'] as String;
+    }
+
+    final created = await _supabase
+        .from('carts')
+        .insert({'user_id': userId})
+        .select('id')
+        .single();
+
+    return created['id'] as String;
+  }
+
   Future<void> fetchCart() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final result = await _client.query(
-        QueryOptions(
-          document: gql(CartQueries.getCart),
-          fetchPolicy: FetchPolicy.networkOnly,
-        ),
-      );
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null) {
+        _cart = null;
+        return;
+      }
 
-      if (result.hasException) {
-        _error = 'Failed to load cart';
-        debugPrint('Cart error: ${result.exception}');
+      final carts = await _supabase
+          .from('carts')
+          .select(
+            'id, cart_items(id, quantity, product:products(id, name, description, price, sale_price, stock, images, is_active, created_at))',
+          )
+          .eq('user_id', userId)
+          .limit(1);
+
+      if (carts.isNotEmpty) {
+        _cart = CartModel.fromJson(carts.first);
       } else {
-        final carts = result.data?['carts'] as List<dynamic>?;
-        if (carts != null && carts.isNotEmpty) {
-          _cart = CartModel.fromJson(carts.first as Map<String, dynamic>);
-        } else {
-          _cart = null;
-        }
+        _cart = null;
       }
     } catch (e) {
       _error = 'Error loading cart: $e';
+      debugPrint('Cart error: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  /// Add item to cart with optimistic update
   Future<bool> addToCart(String productId, {int quantity = 1}) async {
-    // Optimistic update - assume the item is added immediately
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final result = await _client.mutate(
-        MutationOptions(
-          document: gql(CartMutations.addToCart),
-          variables: {'productId': productId, 'quantity': quantity},
-        ),
-      );
-
-      if (result.hasException) {
-        _error = 'Failed to add to cart';
-        debugPrint('Add to cart error: ${result.exception}');
+      final cartId = await _ensureCartId();
+      if (cartId == null) {
+        _error = 'Please sign in to add items to cart';
+        _isLoading = false;
         notifyListeners();
         return false;
       }
 
-      // Optimistically update the cart without fetching entire cart again
-      // In a real app, you would parse the mutation result and update the local state
-      await fetchCart(); // Fallback to full refresh if needed
+      final existingItem = await _supabase
+          .from('cart_items')
+          .select('id, quantity')
+          .eq('cart_id', cartId)
+          .eq('product_id', productId)
+          .maybeSingle();
+
+      if (existingItem != null) {
+        final existingQty = (existingItem['quantity'] as num?)?.toInt() ?? 0;
+        await _supabase
+            .from('cart_items')
+            .update({'quantity': existingQty + quantity})
+            .eq('id', existingItem['id'] as String);
+      } else {
+        await _supabase.from('cart_items').insert({
+          'cart_id': cartId,
+          'product_id': productId,
+          'quantity': quantity,
+        });
+      }
+
+      await _supabase
+          .from('carts')
+          .update({'updated_at': DateTime.now().toIso8601String()})
+          .eq('id', cartId);
+
+      await fetchCart();
       return true;
     } catch (e) {
       _error = 'Error adding to cart: $e';
       debugPrint('Add to cart error: $e');
+      _isLoading = false;
       notifyListeners();
       return false;
     }
   }
 
-  /// Update cart item quantity with optimistic update
   Future<bool> updateQuantity(String cartItemId, int quantity) async {
     if (quantity < 1) return removeItem(cartItemId);
 
-    // Optimistic update - assume the quantity is updated immediately
     final oldQuantity = _cart?.items
         .firstWhere((item) => item.id == cartItemId)
         .quantity;
@@ -107,43 +146,26 @@ class CartProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await _client.mutate(
-        MutationOptions(
-          document: gql(CartMutations.updateCartItem),
-          variables: {'id': cartItemId, 'quantity': quantity},
-        ),
-      );
+      await _supabase
+          .from('cart_items')
+          .update({'quantity': quantity})
+          .eq('id', cartItemId);
 
-      if (result.hasException) {
-        // Revert optimistic update if mutation fails
-        if (itemIndex != -1 && _cart != null && oldQuantity != null) {
-          _cart!.items[itemIndex].quantity = oldQuantity;
-        }
-        _error = 'Failed to update quantity';
-        debugPrint('Update quantity error: ${result.exception}');
-        notifyListeners();
-        return false;
-      }
-
-      // Optimistically update the cart without fetching entire cart again
-      // In a real app, you would parse the mutation result and update the local state
-      await fetchCart(); // Fallback to full refresh if needed
+      await fetchCart();
       return true;
     } catch (e) {
-      // Revert optimistic update if mutation fails
       if (itemIndex != -1 && _cart != null && oldQuantity != null) {
         _cart!.items[itemIndex].quantity = oldQuantity;
       }
       _error = 'Error updating cart: $e';
       debugPrint('Update quantity error: $e');
+      _isLoading = false;
       notifyListeners();
       return false;
     }
   }
 
-  /// Remove item from cart with optimistic update
   Future<bool> removeItem(String cartItemId) async {
-    // Optimistic update - assume the item is removed immediately
     final removedItem = _cart?.items.firstWhere(
       (item) => item.id == cartItemId,
     );
@@ -156,41 +178,22 @@ class CartProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await _client.mutate(
-        MutationOptions(
-          document: gql(CartMutations.removeCartItem),
-          variables: {'id': cartItemId},
-        ),
-      );
+      await _supabase.from('cart_items').delete().eq('id', cartItemId);
 
-      if (result.hasException) {
-        // Revert optimistic update if mutation fails
-        if (removedItem != null && _cart != null) {
-          _cart!.items.add(removedItem);
-        }
-        _error = 'Failed to remove item';
-        debugPrint('Remove item error: ${result.exception}');
-        notifyListeners();
-        return false;
-      }
-
-      // Optimistically update the cart without fetching entire cart again
-      // In a real app, you would parse the mutation result and update the local state
-      await fetchCart(); // Fallback to full refresh if needed
+      await fetchCart();
       return true;
     } catch (e) {
-      // Revert optimistic update if mutation fails
       if (removedItem != null && _cart != null) {
         _cart!.items.add(removedItem);
       }
       _error = 'Error removing from cart: $e';
       debugPrint('Remove item error: $e');
+      _isLoading = false;
       notifyListeners();
       return false;
     }
   }
 
-  /// Clear the entire cart
   Future<bool> clearCart() async {
     if (_cart == null) return true;
 
@@ -199,26 +202,16 @@ class CartProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await _client.mutate(
-        MutationOptions(
-          document: gql(CartMutations.clearCart),
-          variables: {'cartId': _cart!.id},
-        ),
-      );
-
-      if (result.hasException) {
-        _error = 'Failed to clear cart';
-        debugPrint('Clear cart error: ${result.exception}');
-        notifyListeners();
-        return false;
-      }
+      await _supabase.from('cart_items').delete().eq('cart_id', _cart!.id);
 
       _cart = null;
+      _isLoading = false;
       notifyListeners();
       return true;
     } catch (e) {
       _error = 'Error clearing cart: $e';
       debugPrint('Clear cart error: $e');
+      _isLoading = false;
       notifyListeners();
       return false;
     }
