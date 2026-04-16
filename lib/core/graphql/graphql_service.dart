@@ -13,6 +13,7 @@ class GraphQLService {
 
   static const String _guestHasuraRole = 'public';
   static const Set<String> _allowedHasuraRoles = {
+    'public',
     'client',
     'vendor',
     'super_admin',
@@ -33,37 +34,44 @@ class GraphQLService {
   GraphQLClient _buildClient() {
     final httpLink = HttpLink(AppConstants.hasuraHttpEndpoint);
 
-    final authLink = AuthLink(
-      getToken: () async {
-        final session = Supabase.instance.client.auth.currentSession;
-        if (session != null) {
-          return 'Bearer ${session.accessToken}';
-        }
-        return null;
-      },
-    );
+    final authHeadersLink = Link.function((request, [forward]) async* {
+      if (forward == null) {
+        return;
+      }
 
-    final roleLink = AuthLink(
-      headerKey: 'x-hasura-role',
-      getToken: () async {
-        final session = Supabase.instance.client.auth.currentSession;
-        if (session == null) {
-          debugPrint('[GraphQLService] Not authenticated, using public role');
-          return _guestHasuraRole;
-        }
+      final session = Supabase.instance.client.auth.currentSession;
+      final derivedHeaders = <String, String>{};
+
+      if (session != null) {
+        derivedHeaders['Authorization'] = 'Bearer ${session.accessToken}';
 
         final role = _extractHasuraRoleFromJwt(session.accessToken);
-        if (role == null) {
-          debugPrint(
-            '[GraphQLService] Authenticated, no trusted Hasura role found in JWT; relying on server-side JWT defaults',
-          );
-          return null;
+        if (role != null) {
+          derivedHeaders['x-hasura-role'] = role;
         }
 
-        debugPrint('[GraphQLService] Authenticated, using role: $role');
-        return role;
-      },
-    );
+        final claims = _decodeJwtClaims(session.accessToken);
+        if (claims != null) {
+          final hasuraClaims = _extractHasuraClaims(claims);
+          final userId = hasuraClaims?['x-hasura-user-id'] ?? claims['sub'];
+          if (userId is String && userId.isNotEmpty) {
+            derivedHeaders['x-hasura-user-id'] = userId;
+          }
+        }
+      } else {
+        derivedHeaders['x-hasura-role'] = _guestHasuraRole;
+      }
+
+      final updatedRequest = request.updateContextEntry<HttpLinkHeaders>((
+        existing,
+      ) {
+        return HttpLinkHeaders(
+          headers: {...derivedHeaders, ...?existing?.headers},
+        );
+      });
+
+      yield* forward(updatedRequest);
+    });
 
     final wsLink = WebSocketLink(
       AppConstants.hasuraWsEndpoint,
@@ -80,6 +88,15 @@ class GraphQLService {
             if (role != null) {
               headers['x-hasura-role'] = role;
             }
+            // Add user ID from JWT claims
+            final claims = _decodeJwtClaims(session.accessToken);
+            if (claims != null) {
+              final hasuraClaims = _extractHasuraClaims(claims);
+              final userId = hasuraClaims?['x-hasura-user-id'] ?? claims['sub'];
+              if (userId is String && userId.isNotEmpty) {
+                headers['x-hasura-user-id'] = userId;
+              }
+            }
             return {'headers': headers};
           }
 
@@ -90,11 +107,11 @@ class GraphQLService {
       ),
     );
 
-    // Use WebSocket for subscriptions, HTTP for queries/mutations
+    // Use one async header link to avoid nested async auth transforms.
     final link = Link.split(
       (request) => request.isSubscription,
       wsLink,
-      roleLink.concat(authLink).concat(httpLink),
+      authHeadersLink.concat(httpLink),
     );
 
     return GraphQLClient(
@@ -108,18 +125,34 @@ class GraphQLService {
     if (claims == null) return null;
 
     final customClaims = _extractHasuraClaims(claims);
+    final appMetadata = claims['app_metadata'] as Map<String, dynamic>?;
+    final userMetadata = claims['user_metadata'] as Map<String, dynamic>?;
+
     final candidates = <dynamic>[
       customClaims?['x-hasura-default-role'],
       customClaims?['x-hasura-role'],
+      customClaims?['X-Hasura-Default-Role'],
+      customClaims?['X-Hasura-Role'],
       claims['role'],
-      (claims['app_metadata'] as Map<String, dynamic>?)?['role'],
-      (claims['user_metadata'] as Map<String, dynamic>?)?['role'],
+      appMetadata?['role'],
+      appMetadata?['default_role'],
+      userMetadata?['role'],
+      userMetadata?['default_role'],
     ];
 
     for (final candidate in candidates) {
       if (candidate is! String) continue;
       if (_allowedHasuraRoles.contains(candidate)) {
         return candidate;
+      }
+    }
+
+    final allowedRoles = customClaims?['x-hasura-allowed-roles'];
+    if (allowedRoles is List) {
+      for (final role in allowedRoles) {
+        if (role is String && _allowedHasuraRoles.contains(role)) {
+          return role;
+        }
       }
     }
 

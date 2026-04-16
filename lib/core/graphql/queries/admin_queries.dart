@@ -2,6 +2,164 @@
 class AdminQueries {
   AdminQueries._();
 
+  /// OPTIMIZED: Get admin dashboard metrics using pre-aggregated view
+  /// Replaces ~15 separate queries with single view query
+  static const String getDashboardMetrics = r'''
+    query GetDashboardMetrics {
+      vw_admin_dashboard_metrics {
+        total_users
+        total_vendors
+        approved_vendors
+        pending_vendors
+        total_products
+        active_products
+        pending_moderation
+        rejected_products
+        total_orders
+        total_revenue
+        delivered_orders
+        pending_orders
+        paid_orders
+        unpaid_orders
+        active_coupons
+        coupons_used
+        total_reviews
+        avg_rating
+      }
+    }
+  ''';
+
+  /// OPTIMIZED: Get vendor analytics using view
+  static const String getVendorAnalytics = r'''
+    query GetVendorAnalytics($vendorId: uuid!) {
+      vw_vendor_analytics(
+        where: { vendor_id: { _eq: $vendorId } }
+      ) {
+        vendor_id
+        shop_name
+        is_approved
+        vendor_created_at
+        vendor_email
+        vendor_name
+        vendor_phone
+        total_products
+        active_products
+        pending_moderation
+        rejected_products
+        total_orders
+        total_sales
+        total_items_sold
+        pending_fulfillment
+        delivered_orders
+        avg_product_rating
+        total_reviews
+        last_sale_date
+        days_since_last_sale
+      }
+    }
+  ''';
+
+  /// OPTIMIZED: Get inventory alerts using view
+  static const String getInventoryAlerts = r'''
+    query GetInventoryAlerts($vendorId: uuid) {
+      vw_inventory_alerts(
+        where: { vendor_id: { _eq: $vendorId } },
+        order_by: { alert_priority: asc }
+      ) {
+        id
+        name
+        price
+        sale_price
+        stock
+        images
+        vendor_id
+        shop_name
+        vendor_email
+        stock_status
+        alert_priority
+        created_at
+        updated_at
+      }
+    }
+  ''';
+
+  /// OPTIMIZED: Get pending vendor approvals using view
+  static const String getPendingVendorApprovals = r'''
+    query GetPendingVendorApprovals {
+      vw_pending_vendor_approvals {
+        vendor_id
+        user_id
+        shop_name
+        description
+        logo_url
+        is_approved
+        created_at
+        email
+        name
+        phone
+        product_count
+        vendor_status
+      }
+    }
+  ''';
+
+  /// OPTIMIZED: Get pending product moderation using view
+  static const String getPendingProductModeration = r'''
+    query GetPendingProductModeration {
+      vw_pending_product_moderation(
+        order_by: { created_at: asc }
+      ) {
+        id
+        name
+        description
+        price
+        sale_price
+        stock
+        images
+        created_at
+        moderation_status
+        moderation_notes
+        moderated_by
+        moderated_at
+        vendor_id
+        shop_name
+        vendor_user_id
+        vendor_email
+        vendor_name
+        vendor_phone
+        pending_duration
+      }
+    }
+  ''';
+
+  /// OPTIMIZED: Get customer spending analytics using view
+  static const String getCustomerSpendingAnalytics = r'''
+    query GetCustomerSpendingAnalytics(
+      $limit: Int,
+      $offset: Int
+    ) {
+      vw_customer_spending_analytics(
+        limit: $limit,
+        offset: $offset,
+        order_by: { lifetime_spending: desc }
+      ) {
+        user_id
+        email
+        name
+        phone
+        customer_registered_date
+        total_orders
+        lifetime_spending
+        average_order_value
+        delivered_orders
+        cancelled_orders
+        last_purchase_date
+        days_since_last_purchase
+        reviews_written
+      }
+    }
+  ''';
+
   /// Get all vendors with approval status
   static const String getVendors = r'''
     query GetVendors {
@@ -193,6 +351,30 @@ class AdminQueries {
 
 class AdminMutations {
   AdminMutations._();
+
+  /// OPTIMIZED: Approve/reject product using procedure (includes audit trail)
+  static const String approveProductForSale = r'''
+    mutation ApproveProductForSale(
+      $productId: uuid!,
+      $adminUserId: uuid!,
+      $status: String!,
+      $moderationNotes: String
+    ) {
+      approve_product_for_sale(
+        p_product_id: $productId,
+        p_admin_user_id: $adminUserId,
+        p_status: $status,
+        p_moderation_notes: $moderationNotes
+      ) {
+        product_id
+        moderation_status
+        is_active
+        moderated_at
+        affected_rows
+        message
+      }
+    }
+  ''';
 
   /// Approve or reject a vendor
   static const String updateVendorApproval = r'''

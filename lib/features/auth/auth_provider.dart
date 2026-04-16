@@ -90,7 +90,6 @@ class AuthProvider extends ChangeNotifier {
 
       await _supabase.auth.signInWithPassword(email: email, password: password);
 
-      debugPrintJWT();
       GraphQLService.instance.refresh();
       await _fetchUserProfile();
       return true;

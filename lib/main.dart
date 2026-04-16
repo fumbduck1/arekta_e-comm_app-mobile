@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_native_splash/flutter_native_splash.dart';
+
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -43,11 +43,6 @@ import 'features/admin/screens/admin_product_moderation_screen.dart';
 import 'widgets/main_shell.dart';
 
 void main() async {
-  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialize native splash screen
-  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-
   // Do initialization before showing any Dart UI
   try {
     await dotenv.load(fileName: '.env');
@@ -71,9 +66,7 @@ void main() async {
         context: ErrorDescription('while initializing app services'),
       ),
     );
-  } finally {
-    FlutterNativeSplash.remove();
-  }
+  } finally {}
 
   runApp(const ArekitaApp());
 }
@@ -129,7 +122,6 @@ class _BootstrapAppState extends State<_BootstrapApp> {
       }
 
       // Now remove native splash and transition to main app
-      FlutterNativeSplash.remove();
 
       setState(() {
         _isReady = true;
@@ -147,9 +139,6 @@ class _BootstrapAppState extends State<_BootstrapApp> {
       if (!mounted) {
         return;
       }
-
-      // Remove native splash on error too
-      FlutterNativeSplash.remove();
 
       setState(() {
         _startupError = error;

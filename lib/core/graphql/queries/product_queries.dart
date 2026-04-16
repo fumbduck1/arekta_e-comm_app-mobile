@@ -62,10 +62,100 @@ class ProductQueries {
     }
   ''';
 
+  /// OPTIMIZED: Fetch active products catalog using pre-aggregated view
+  /// Replaces multiple JOINs with single view query
+  /// Use this for product listings with ratings and discounts
+  static const String getActiveProductsCatalog = r'''
+    query GetActiveProductsCatalog(
+      $limit: Int,
+      $offset: Int,
+      $orderBy: [vw_active_products_catalog_order_by!]
+    ) {
+      vw_active_products_catalog(
+        limit: $limit,
+        offset: $offset,
+        order_by: $orderBy
+      ) {
+        id
+        name
+        description
+        price
+        sale_price
+        stock
+        images
+        created_at
+        vendor_id
+        shop_name
+        vendor_approved
+        category_id
+        category_name
+        avg_rating
+        review_count
+        discount_percentage
+        in_stock
+        stock_status
+      }
+      vw_active_products_catalog_aggregate {
+        aggregate {
+          count
+        }
+      }
+    }
+  ''';
+
+  /// Permission-safe single product detail from catalog view.
+  /// Use this when direct `products` table access is restricted by Hasura RBAC.
+  static const String getActiveProductDetailById = r'''
+    query GetActiveProductDetailById($id: uuid!) {
+      vw_active_products_catalog(
+        where: { id: { _eq: $id } },
+        limit: 1
+      ) {
+        id
+        name
+        description
+        price
+        sale_price
+        stock
+        images
+        created_at
+        vendor_id
+        shop_name
+        category_id
+        category_name
+        avg_rating
+        review_count
+        in_stock
+      }
+    }
+  ''';
+
+  /// OPTIMIZED: Get trending products using view
+  static const String getTrendingProducts = r'''
+    query GetTrendingProducts($limit: Int) {
+      vw_top_products_by_sales(
+        limit: $limit,
+        order_by: { units_sold: desc }
+      ) {
+        id
+        name
+        price
+        sale_price
+        images
+        vendor_id
+        shop_name
+        units_sold
+        total_revenue
+        avg_rating
+        review_count
+      }
+    }
+  ''';
+
   /// Fetch single product by ID with full details
   static const String getProductById = r'''
     query GetProductById($id: uuid!) {
-      products_by_pk(id: $id) {
+      products(where: { id: { _eq: $id } }, limit: 1) {
         id
         name
         description
@@ -83,7 +173,7 @@ class ProductQueries {
         vendor {
           id
           shop_name
-          shop_description: description
+          description
           logo_url
         }
         reviews(order_by: { created_at: desc }, limit: 10) {

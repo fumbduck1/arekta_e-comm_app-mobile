@@ -7,12 +7,14 @@ class CartModel {
   const CartModel({required this.id, required this.items});
 
   factory CartModel.fromJson(Map<String, dynamic> json) {
-    final itemsList =
-        (json['cart_items'] as List<dynamic>?)
-            ?.map((e) => CartItemModel.fromJson(e as Map<String, dynamic>))
-            .toList() ??
-        [];
-    return CartModel(id: json['id'] as String, items: itemsList);
+    final rawItems = (json['cart_items'] as List<dynamic>?) ?? const [];
+    final itemsList = rawItems
+        .whereType<Map<String, dynamic>>()
+        .map(CartItemModel.tryFromJson)
+        .whereType<CartItemModel>()
+        .toList();
+
+    return CartModel(id: (json['id'] ?? '').toString(), items: itemsList);
   }
 
   double get subtotal => items.fold(0.0, (sum, item) => sum + item.lineTotal);
@@ -39,6 +41,23 @@ class CartItemModel {
       quantity: json['quantity'] as int,
       product: ProductModel.fromJson(json['product'] as Map<String, dynamic>),
     );
+  }
+
+  static CartItemModel? tryFromJson(Map<String, dynamic> json) {
+    try {
+      final productJson = json['product'];
+      if (productJson is! Map<String, dynamic>) {
+        return null;
+      }
+
+      return CartItemModel(
+        id: (json['id'] ?? '').toString(),
+        quantity: (json['quantity'] as num?)?.toInt() ?? 1,
+        product: ProductModel.fromJson(productJson),
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   double get lineTotal => product.price * quantity;

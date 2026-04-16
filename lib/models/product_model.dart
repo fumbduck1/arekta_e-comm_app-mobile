@@ -54,9 +54,8 @@ class ProductModel {
       slug: json['slug'] as String?,
       description: json['description'] as String?,
       price: (json['price'] as num).toDouble(),
-      compareAtPrice:
-          ((json['compare_at_price'] ?? json['sale_price']) as num?)
-              ?.toDouble(),
+      compareAtPrice: ((json['compare_at_price'] ?? json['sale_price']) as num?)
+          ?.toDouble(),
       stockQty: ((json['stock_qty'] ?? json['stock']) as num?)?.toInt() ?? 0,
       images: imageList,
       isActive: json['is_active'] as bool? ?? true,

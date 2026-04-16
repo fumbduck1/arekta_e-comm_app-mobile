@@ -38,7 +38,7 @@ Users\akram\arekta_e-comm_app mobile\mobile_apps.code-workspace
 .pub/
 /build/
 /coverage/
-
+.kilo/
 # Symbolication related
 app.*.symbols
 
