@@ -39,13 +39,25 @@ class ProductModel {
       imageList = rawImages.map((e) => e.toString()).toList();
     }
 
-    // Parse review aggregate
     double? avgRating;
     int reviewCount = 0;
-    final agg = json['reviews_aggregate']?['aggregate'];
-    if (agg != null) {
-      avgRating = (agg['avg']?['rating'] as num?)?.toDouble();
-      reviewCount = (agg['count'] as num?)?.toInt() ?? 0;
+    final ra = json['reviews_aggregate'];
+    if (ra is Map<String, dynamic>) {
+      final agg = ra['aggregate'];
+      if (agg is Map<String, dynamic>) {
+        final avg = agg['avg'];
+        if (avg is Map<String, dynamic>) {
+          avgRating = (avg['rating'] as num?)?.toDouble();
+        }
+        reviewCount = (agg['count'] as num?)?.toInt() ?? 0;
+      } else {
+        avgRating = (ra['avg_rating'] as num?)?.toDouble();
+        reviewCount = (ra['count'] as num?)?.toInt() ?? 0;
+      }
+    } else {
+      avgRating = (json['avg_rating'] as num?)?.toDouble();
+      reviewCount = (json['rating_count'] as num?)?.toInt() ??
+          (json['review_count'] as num?)?.toInt() ?? 0;
     }
 
     return ProductModel(

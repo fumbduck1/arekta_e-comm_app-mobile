@@ -1,11 +1,66 @@
 import 'package:flutter/material.dart';
-import 'package:graphql_flutter/graphql_flutter.dart';
-import '../../../core/graphql/queries/admin_queries.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../widgets/admin_app_drawer.dart';
 import '../widgets/admin_logout_action.dart';
 
-class AdminVendorApprovalsScreen extends StatelessWidget {
+class AdminVendorApprovalsScreen extends StatefulWidget {
   const AdminVendorApprovalsScreen({super.key});
+
+  @override
+  State<AdminVendorApprovalsScreen> createState() =>
+      _AdminVendorApprovalsScreenState();
+}
+
+class _AdminVendorApprovalsScreenState
+    extends State<AdminVendorApprovalsScreen> {
+  final _supabase = Supabase.instance.client;
+  List<Map<String, dynamic>> _vendors = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVendors();
+  }
+
+  Future<void> _loadVendors() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await _supabase
+          .from('vendors')
+          .select('id, shop_name, logo_url, is_approved, user:users(name, email)')
+          .order('created_at', ascending: false);
+
+      if (!mounted) return;
+      setState(() {
+        _vendors = List<Map<String, dynamic>>.from(data as List);
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  Future<void> _toggleApproval(String id, bool isApproved) async {
+    try {
+      await _supabase
+          .from('vendors')
+          .update({'is_approved': isApproved})
+          .eq('id', id);
+      await _loadVendors();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,91 +70,52 @@ class AdminVendorApprovalsScreen extends StatelessWidget {
         title: const Text('Vendor Approvals'),
         actions: const [AdminLogoutAction()],
       ),
-      body: Query(
-        options: QueryOptions(
-          document: gql(AdminQueries.getVendors),
-          fetchPolicy: FetchPolicy.networkOnly,
-        ),
-        builder: (result, {fetchMore, refetch}) {
-          if (result.isLoading && result.data == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (result.hasException) {
-            return Center(child: Text('Error: ${result.exception}'));
-          }
+      body: () {
+        if (_loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (_error != null) {
+          return Center(child: Text('Error: $_error'));
+        }
+        if (_vendors.isEmpty) {
+          return const Center(child: Text('No vendors found'));
+        }
 
-          final vendors = (result.data?['vendors'] as List<dynamic>?) ?? [];
-          if (vendors.isEmpty) {
-            return const Center(child: Text('No vendors found'));
-          }
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: _vendors.length,
+          itemBuilder: (context, index) {
+            final v = _vendors[index];
+            final user = v['user'] as Map<String, dynamic>?;
+            final isApproved = v['is_approved'] as bool? ?? false;
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: vendors.length,
-            itemBuilder: (context, index) {
-              final v = vendors[index] as Map<String, dynamic>;
-              final user = v['user'] as Map<String, dynamic>?;
-              final isApproved = v['is_approved'] as bool? ?? false;
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundImage: v['logo_url'] != null
-                        ? NetworkImage(v['logo_url'] as String)
-                        : null,
-                    child: v['logo_url'] == null
-                        ? const Icon(Icons.store)
-                        : null,
-                  ),
-                  title: Text(
-                    v['shop_name'] as String? ?? 'Unknown',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Text(
-                    '${user?['name'] ?? 'N/A'} • ${user?['email'] ?? ''}',
-                  ),
-                  trailing: _ApprovalToggle(
-                    vendorId: v['id'] as String,
-                    isApproved: isApproved,
-                    onToggled: () => refetch?.call(),
-                  ),
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundImage: v['logo_url'] != null
+                      ? NetworkImage(v['logo_url'] as String)
+                      : null,
+                  child: v['logo_url'] == null
+                      ? const Icon(Icons.store)
+                      : null,
                 ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _ApprovalToggle extends StatelessWidget {
-  final String vendorId;
-  final bool isApproved;
-  final VoidCallback onToggled;
-
-  const _ApprovalToggle({
-    required this.vendorId,
-    required this.isApproved,
-    required this.onToggled,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Mutation(
-      options: MutationOptions(
-        document: gql(AdminMutations.updateVendorApproval),
-        onCompleted: (_) => onToggled(),
-      ),
-      builder: (runMutation, result) {
-        return Switch(
-          value: isApproved,
-          onChanged: (val) {
-            runMutation({'id': vendorId, 'isApproved': val});
+                title: Text(
+                  v['shop_name'] as String? ?? 'Unknown',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                subtitle: Text(
+                  '${user?['name'] ?? 'N/A'} • ${user?['email'] ?? ''}',
+                ),
+                trailing: Switch(
+                  value: isApproved,
+                  onChanged: (val) => _toggleApproval(v['id'] as String, val),
+                ),
+              ),
+            );
           },
         );
-      },
+      }(),
     );
   }
 }

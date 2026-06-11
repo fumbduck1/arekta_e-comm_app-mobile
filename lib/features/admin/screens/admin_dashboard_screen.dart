@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/graphql/queries/admin_queries.dart';
 import '../widgets/admin_app_drawer.dart';
 import '../widgets/admin_logout_action.dart';
 
@@ -14,13 +13,115 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
+  final _supabase = Supabase.instance.client;
   _DashboardPeriod _period = _DashboardPeriod.monthly;
+  bool _loading = true;
+  String? _error;
+
+  int _productCurrent = 0;
+  int _productPrevious = 0;
+  int _vendorCurrent = 0;
+  int _vendorPrevious = 0;
+  int _orderCurrent = 0;
+  int _orderPrevious = 0;
+  double _salesCurrent = 0;
+  double _salesPrevious = 0;
+  List<_VendorRankItem> _rankRows = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final range = _DateRange.current(_period);
+      final previousRange = range.previousRange;
+      final start = range.start.toUtc().toIso8601String();
+      final end = range.end.toUtc().toIso8601String();
+      final prevStart = previousRange.start.toUtc().toIso8601String();
+      final prevEnd = previousRange.end.toUtc().toIso8601String();
+
+      final results = await Future.wait([
+        _supabase.from('products').select('id').gte('created_at', start).lt('created_at', end),
+        _supabase.from('products').select('id').gte('created_at', prevStart).lt('created_at', prevEnd),
+        _supabase.from('vendors').select('id').gte('created_at', start).lt('created_at', end),
+        _supabase.from('vendors').select('id').gte('created_at', prevStart).lt('created_at', prevEnd),
+        _supabase.from('orders').select('total_amount').gte('created_at', start).lt('created_at', end),
+        _supabase.from('orders').select('total_amount').gte('created_at', prevStart).lt('created_at', prevEnd),
+        _supabase
+            .from('order_items')
+            .select('vendor_id, order_id, quantity, price_at_purchase, vendor:vendors(shop_name)')
+            .gte('created_at', start)
+            .lt('created_at', end),
+      ]);
+
+      if (!mounted) return;
+
+      final productsCurrentRows = (results[0] as List);
+      final productsPreviousRows = (results[1] as List);
+      final vendorsCurrentRows = (results[2] as List);
+      final vendorsPreviousRows = (results[3] as List);
+      final ordersCurrentRows = (results[4] as List).cast<Map<String, dynamic>>();
+      final ordersPreviousRows = (results[5] as List).cast<Map<String, dynamic>>();
+      final vendorOrderItems = (results[6] as List).cast<Map<String, dynamic>>();
+
+      setState(() {
+        _productCurrent = productsCurrentRows.length;
+        _productPrevious = productsPreviousRows.length;
+        _vendorCurrent = vendorsCurrentRows.length;
+        _vendorPrevious = vendorsPreviousRows.length;
+        _orderCurrent = ordersCurrentRows.length;
+        _orderPrevious = ordersPreviousRows.length;
+        _salesCurrent = _sumOrderTotals(ordersCurrentRows);
+        _salesPrevious = _sumOrderTotals(ordersPreviousRows);
+        _rankRows = _buildRankRows(vendorOrderItems);
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final range = _DateRange.current(_period);
-    final previousRange = range.previousRange;
+
+    if (_loading) {
+      return Scaffold(
+        drawer: const AdminAppDrawer(currentRoute: '/admin/dashboard'),
+        appBar: AppBar(
+          title: const Text('Admin Dashboard'),
+          actions: const [AdminLogoutAction()],
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_error != null) {
+      return Scaffold(
+        drawer: const AdminAppDrawer(currentRoute: '/admin/dashboard'),
+        appBar: AppBar(
+          title: const Text('Admin Dashboard'),
+          actions: const [AdminLogoutAction()],
+        ),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Error: $_error'),
+              const SizedBox(height: 16),
+              ElevatedButton(onPressed: _loadData, child: const Text('Retry')),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       drawer: const AdminAppDrawer(currentRoute: '/admin/dashboard'),
@@ -28,180 +129,136 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: const Text('Admin Dashboard'),
         actions: const [AdminLogoutAction()],
       ),
-      body: Query(
-        options: QueryOptions(
-          document: gql(AdminQueries.getDashboardInsights),
-          variables: {
-            'start': range.start.toUtc().toIso8601String(),
-            'end': range.end.toUtc().toIso8601String(),
-            'previousStart': previousRange.start.toUtc().toIso8601String(),
-            'previousEnd': previousRange.end.toUtc().toIso8601String(),
-          },
-          fetchPolicy: FetchPolicy.networkOnly,
-        ),
-        builder: (result, {fetchMore, refetch}) {
-          if (result.isLoading && result.data == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (result.hasException) {
-            return Center(child: Text('Error: ${result.exception}'));
-          }
-
-          final data = result.data ?? <String, dynamic>{};
-
-          final productsCurrentRows =
-              (data['products_current'] as List?) ?? const [];
-          final productsPreviousRows =
-              (data['products_previous'] as List?) ?? const [];
-          final vendorsCurrentRows =
-              (data['vendors_current'] as List?) ?? const [];
-          final vendorsPreviousRows =
-              (data['vendors_previous'] as List?) ?? const [];
-          final ordersCurrentRows =
-              (data['orders_current'] as List?) ?? const [];
-          final ordersPreviousRows =
-              (data['orders_previous'] as List?) ?? const [];
-
-          final productCurrent = productsCurrentRows.length;
-          final productPrevious = productsPreviousRows.length;
-          final vendorCurrent = vendorsCurrentRows.length;
-          final vendorPrevious = vendorsPreviousRows.length;
-          final orderCurrent = ordersCurrentRows.length;
-          final orderPrevious = ordersPreviousRows.length;
-          final salesCurrent = _sumOrderTotals(ordersCurrentRows);
-          final salesPrevious = _sumOrderTotals(ordersPreviousRows);
-
-          final rankRows = _buildRankRows(data['vendor_order_items'] as List?);
-
-          return RefreshIndicator(
-            onRefresh: () async => refetch?.call(),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        child: ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Admin Home',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    _PeriodPicker(
-                      value: _period,
-                      onChanged: (value) => setState(() => _period = value),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '${_formatRange(range.start)} - ${_formatRange(range.end.subtract(const Duration(seconds: 1)))}',
-                  style: theme.textTheme.bodySmall,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _KpiCard(
-                        label: 'Product Uploads',
-                        value: '$productCurrent',
-                        delta: _buildPercentChange(
-                          productCurrent.toDouble(),
-                          productPrevious.toDouble(),
-                        ),
-                        icon: Icons.inventory_2_outlined,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _KpiCard(
-                        label: 'Vendor Registrations',
-                        value: '$vendorCurrent',
-                        delta: _buildPercentChange(
-                          vendorCurrent.toDouble(),
-                          vendorPrevious.toDouble(),
-                        ),
-                        icon: Icons.storefront_outlined,
-                        color: Colors.teal,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _KpiCard(
-                        label: 'Order Frequency',
-                        value: '$orderCurrent',
-                        delta: _buildPercentChange(
-                          orderCurrent.toDouble(),
-                          orderPrevious.toDouble(),
-                        ),
-                        icon: Icons.shopping_bag_outlined,
-                        color: Colors.orange,
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _KpiCard(
-                        label: 'Sales (BDT)',
-                        value: NumberFormat.currency(
-                          symbol: 'BDT ',
-                          decimalDigits: 0,
-                        ).format(salesCurrent),
-                        delta: _buildPercentChange(salesCurrent, salesPrevious),
-                        icon: Icons.currency_exchange_outlined,
-                        color: Colors.indigo,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Top 20 Vendors (Order Frequency)',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                if (rankRows.isEmpty)
-                  const Card(
-                    child: Padding(
-                      padding: EdgeInsets.all(16),
-                      child: Text(
-                        'No vendor order data available for this period.',
-                      ),
-                    ),
-                  )
-                else
-                  Card(
-                    child: Column(
-                      children: rankRows
-                          .take(20)
-                          .toList()
-                          .asMap()
-                          .entries
-                          .map(
-                            (entry) => _VendorRankTile(
-                              rank: entry.key + 1,
-                              item: entry.value,
-                            ),
-                          )
-                          .toList(),
+                Expanded(
+                  child: Text(
+                    'Admin Home',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                const SizedBox(height: 12),
-                Text(
-                  'All newly uploaded vendor products stay pending until super-admin validation from Product Moderation.',
-                  style: theme.textTheme.bodySmall,
+                ),
+                _PeriodPicker(
+                  value: _period,
+                  onChanged: (value) {
+                    setState(() => _period = value);
+                    _loadData();
+                  },
                 ),
               ],
             ),
-          );
-        },
+            const SizedBox(height: 6),
+            Text(
+              '${_formatRange(_DateRange.current(_period).start)} - ${_formatRange(_DateRange.current(_period).end.subtract(const Duration(seconds: 1)))}',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _KpiCard(
+                    label: 'Product Uploads',
+                    value: '$_productCurrent',
+                    delta: _buildPercentChange(
+                      _productCurrent.toDouble(),
+                      _productPrevious.toDouble(),
+                    ),
+                    icon: Icons.inventory_2_outlined,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _KpiCard(
+                    label: 'Vendor Registrations',
+                    value: '$_vendorCurrent',
+                    delta: _buildPercentChange(
+                      _vendorCurrent.toDouble(),
+                      _vendorPrevious.toDouble(),
+                    ),
+                    icon: Icons.storefront_outlined,
+                    color: Colors.teal,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: _KpiCard(
+                    label: 'Order Frequency',
+                    value: '$_orderCurrent',
+                    delta: _buildPercentChange(
+                      _orderCurrent.toDouble(),
+                      _orderPrevious.toDouble(),
+                    ),
+                    icon: Icons.shopping_bag_outlined,
+                    color: Colors.orange,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: _KpiCard(
+                    label: 'Sales (BDT)',
+                    value: NumberFormat.currency(
+                      symbol: 'BDT ',
+                      decimalDigits: 0,
+                    ).format(_salesCurrent),
+                    delta: _buildPercentChange(_salesCurrent, _salesPrevious),
+                    icon: Icons.currency_exchange_outlined,
+                    color: Colors.indigo,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Top 20 Vendors (Order Frequency)',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (_rankRows.isEmpty)
+              const Card(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text(
+                    'No vendor order data available for this period.',
+                  ),
+                ),
+              )
+            else
+              Card(
+                child: Column(
+                  children: _rankRows
+                      .take(20)
+                      .toList()
+                      .asMap()
+                      .entries
+                      .map(
+                        (entry) => _VendorRankTile(
+                          rank: entry.key + 1,
+                          item: entry.value,
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            const SizedBox(height: 12),
+            Text(
+              'All newly uploaded vendor products stay pending until super-admin validation from Product Moderation.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -209,24 +266,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   String _formatRange(DateTime value) =>
       DateFormat('dd MMM yyyy').format(value.toLocal());
 
-  double _sumOrderTotals(List rows) {
+  double _sumOrderTotals(List<Map<String, dynamic>> rows) {
     double total = 0;
-    for (final raw in rows) {
-      final row = raw as Map<String, dynamic>;
+    for (final row in rows) {
       total += (row['total_amount'] as num?)?.toDouble() ?? 0;
     }
     return total;
   }
 
-  /// Builds rank rows from raw order items for the selected period.
-  List<_VendorRankItem> _buildRankRows(List? rawRows) {
-    if (rawRows == null || rawRows.isEmpty) {
+  List<_VendorRankItem> _buildRankRows(List<Map<String, dynamic>> rawRows) {
+    if (rawRows.isEmpty) {
       return const <_VendorRankItem>[];
     }
 
     final Map<String, _RankAccumulator> grouped = {};
-    for (final raw in rawRows) {
-      final row = raw as Map<String, dynamic>;
+    for (final row in rawRows) {
       final vendorId = row['vendor_id'] as String?;
       if (vendorId == null) continue;
 

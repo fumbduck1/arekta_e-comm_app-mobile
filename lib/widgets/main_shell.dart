@@ -76,34 +76,24 @@ class _MainShellState extends State<MainShell> {
     ),
   ];
 
+  static const _clientRoutes = ['/', '/products', '/cart', '/orders', '/profile'];
+  static const _vendorRoutes = [
+    '/vendor/dashboard',
+    '/vendor/products',
+    '/vendor/orders',
+    '/vendor/profile',
+  ];
+
   void _onClientTap(int index) {
     if (index == widget.currentIndex) return;
-    switch (index) {
-      case 0:
-        Navigator.of(context).pushNamed('/');
-      case 1:
-        Navigator.of(context).pushNamed('/products');
-      case 2:
-        Navigator.of(context).pushNamed('/cart');
-      case 3:
-        Navigator.of(context).pushNamed('/orders');
-      case 4:
-        Navigator.of(context).pushNamed('/profile');
-    }
+    Navigator.of(context)
+        .pushNamedAndRemoveUntil(_clientRoutes[index], (route) => false);
   }
 
   void _onVendorTap(int index) {
     if (index == widget.currentIndex) return;
-    switch (index) {
-      case 0:
-        Navigator.of(context).pushNamed('/vendor/dashboard');
-      case 1:
-        Navigator.of(context).pushNamed('/vendor/products');
-      case 2:
-        Navigator.of(context).pushNamed('/vendor/orders');
-      case 3:
-        Navigator.of(context).pushNamed('/vendor/profile');
-    }
+    Navigator.of(context)
+        .pushNamedAndRemoveUntil(_vendorRoutes[index], (route) => false);
   }
 
   // void _onAdminTap(int index) {

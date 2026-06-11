@@ -1,12 +1,103 @@
 import 'package:flutter/material.dart';
-import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:intl/intl.dart';
-import '../../../core/graphql/queries/admin_queries.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../widgets/admin_app_drawer.dart';
 import '../widgets/admin_logout_action.dart';
 
-class AdminCouponsScreen extends StatelessWidget {
+class AdminCouponsScreen extends StatefulWidget {
   const AdminCouponsScreen({super.key});
+
+  @override
+  State<AdminCouponsScreen> createState() => _AdminCouponsScreenState();
+}
+
+class _AdminCouponsScreenState extends State<AdminCouponsScreen> {
+  final _supabase = Supabase.instance.client;
+  List<Map<String, dynamic>> _coupons = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCoupons();
+  }
+
+  Future<void> _loadCoupons() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await _supabase
+          .from('coupons')
+          .select('id, code, discount_type, discount_value, min_order, max_uses, used_count, is_active')
+          .order('created_at', ascending: false);
+
+      if (!mounted) return;
+      setState(() {
+        _coupons = List<Map<String, dynamic>>.from(data as List);
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  Future<void> _createCoupon({
+    required String code,
+    required String discountType,
+    required double discountValue,
+    double? minOrder,
+    int? maxUses,
+  }) async {
+    try {
+      await _supabase.from('coupons').insert({
+        'code': code,
+        'discount_type': discountType,
+        'discount_value': discountValue,
+        'min_order': minOrder,
+        'max_uses': maxUses,
+      });
+      await _loadCoupons();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to create: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _toggleActive(String id, bool isActive) async {
+    try {
+      await _supabase
+          .from('coupons')
+          .update({'is_active': isActive})
+          .eq('id', id);
+      await _loadCoupons();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteCoupon(String id) async {
+    try {
+      await _supabase.from('coupons').delete().eq('id', id);
+      await _loadCoupons();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,87 +113,79 @@ class AdminCouponsScreen extends StatelessWidget {
         onPressed: () => _showCreateDialog(context),
         child: const Icon(Icons.add),
       ),
-      body: Query(
-        options: QueryOptions(
-          document: gql(AdminQueries.getCoupons),
-          fetchPolicy: FetchPolicy.networkOnly,
-        ),
-        builder: (result, {fetchMore, refetch}) {
-          if (result.isLoading && result.data == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (result.hasException) {
-            return Center(child: Text('Error: ${result.exception}'));
-          }
+      body: () {
+        if (_loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (_error != null) {
+          return Center(child: Text('Error: $_error'));
+        }
+        if (_coupons.isEmpty) {
+          return const Center(child: Text('No coupons yet'));
+        }
 
-          final coupons = (result.data?['coupons'] as List<dynamic>?) ?? [];
-          if (coupons.isEmpty) {
-            return const Center(child: Text('No coupons yet'));
-          }
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: _coupons.length,
+          itemBuilder: (context, index) {
+            final c = _coupons[index];
+            final isActive = c['is_active'] as bool? ?? true;
+            final discountType = c['discount_type'] as String;
+            final discountValue =
+                (c['discount_value'] as num?)?.toDouble() ?? 0;
+            final usedCount = c['used_count'] as int? ?? 0;
+            final maxUses = c['max_uses'] as int?;
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: coupons.length,
-            itemBuilder: (context, index) {
-              final c = coupons[index] as Map<String, dynamic>;
-              final isActive = c['is_active'] as bool? ?? true;
-              final discountType = c['discount_type'] as String;
-              final discountValue =
-                  (c['discount_value'] as num?)?.toDouble() ?? 0;
-              final usedCount = c['used_count'] as int? ?? 0;
-              final maxUses = c['max_uses'] as int?;
+            final discountLabel = discountType == 'percentage'
+                ? '${discountValue.toStringAsFixed(0)}%'
+                : currency.format(discountValue);
 
-              final discountLabel = discountType == 'percentage'
-                  ? '${discountValue.toStringAsFixed(0)}%'
-                  : currency.format(discountValue);
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: isActive
-                        ? Colors.green[100]
-                        : Colors.grey[300],
-                    child: Text(
-                      discountLabel,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: isActive ? Colors.green[800] : Colors.grey,
-                      ),
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: isActive
+                      ? Colors.green[100]
+                      : Colors.grey[300],
+                  child: Text(
+                    discountLabel,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: isActive ? Colors.green[800] : Colors.grey,
                     ),
-                  ),
-                  title: Text(
-                    c['code'] as String,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  subtitle: Text(
-                    'Used $usedCount${maxUses != null ? '/$maxUses' : ''}'
-                    '${c['min_order'] != null ? ' • Min ${currency.format((c['min_order'] as num).toDouble())}' : ''}',
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _ToggleCouponButton(
-                        couponId: c['id'] as String,
-                        isActive: isActive,
-                        onToggled: () => refetch?.call(),
-                      ),
-                      _DeleteCouponButton(
-                        couponId: c['id'] as String,
-                        onDeleted: () => refetch?.call(),
-                      ),
-                    ],
                   ),
                 ),
-              );
-            },
-          );
-        },
-      ),
+                title: Text(
+                  c['code'] as String,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                  ),
+                ),
+                subtitle: Text(
+                  'Used $usedCount${maxUses != null ? '/$maxUses' : ''}'
+                  '${c['min_order'] != null ? ' • Min ${currency.format((c['min_order'] as num).toDouble())}' : ''}',
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _ToggleCouponButton(
+                      couponId: c['id'] as String,
+                      isActive: isActive,
+                      onToggled: _toggleActive,
+                    ),
+                    _DeleteCouponButton(
+                      couponId: c['id'] as String,
+                      onDeleted: _deleteCoupon,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      }(),
     );
   }
 
@@ -175,47 +258,32 @@ class AdminCouponsScreen extends StatelessWidget {
               onPressed: () => Navigator.pop(ctx),
               child: const Text('Cancel'),
             ),
-            Mutation(
-              options: MutationOptions(
-                document: gql(AdminMutations.createCoupon),
-                onCompleted: (_) => Navigator.pop(ctx),
-              ),
-              builder: (runMutation, result) {
-                return TextButton(
-                  onPressed: result?.isLoading == true
-                      ? null
-                      : () {
-                          final code = codeController.text.trim();
-                          final value = double.tryParse(
-                            valueController.text.trim(),
-                          );
-                          if (code.isEmpty || value == null || value <= 0) {
-                            return;
-                          }
-                          final minOrder = double.tryParse(
-                            minOrderController.text.trim(),
-                          );
-                          final maxUses = int.tryParse(
-                            maxUsesController.text.trim(),
-                          );
+            TextButton(
+              onPressed: () async {
+                final code = codeController.text.trim();
+                final value = double.tryParse(
+                  valueController.text.trim(),
+                );
+                if (code.isEmpty || value == null || value <= 0) {
+                  return;
+                }
+                final minOrder = double.tryParse(
+                  minOrderController.text.trim(),
+                );
+                final maxUses = int.tryParse(
+                  maxUsesController.text.trim(),
+                );
 
-                          runMutation({
-                            'code': code,
-                            'discountType': discountType,
-                            'discountValue': value,
-                            'minOrder': ?minOrder,
-                            'maxUses': ?maxUses,
-                          });
-                        },
-                  child: result?.isLoading == true
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Create'),
+                Navigator.pop(ctx);
+                await _createCoupon(
+                  code: code,
+                  discountType: discountType,
+                  discountValue: value,
+                  minOrder: minOrder,
+                  maxUses: maxUses,
                 );
               },
+              child: const Text('Create'),
             ),
           ],
         ),
@@ -227,7 +295,7 @@ class AdminCouponsScreen extends StatelessWidget {
 class _ToggleCouponButton extends StatelessWidget {
   final String couponId;
   final bool isActive;
-  final VoidCallback onToggled;
+  final Future<void> Function(String id, bool isActive) onToggled;
 
   const _ToggleCouponButton({
     required this.couponId,
@@ -237,71 +305,55 @@ class _ToggleCouponButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Mutation(
-      options: MutationOptions(
-        document: gql(AdminMutations.updateCouponStatus),
-        onCompleted: (_) => onToggled(),
+    return IconButton(
+      icon: Icon(
+        isActive ? Icons.toggle_on : Icons.toggle_off,
+        color: isActive ? Colors.green : Colors.grey,
+        size: 28,
       ),
-      builder: (runMutation, _) {
-        return IconButton(
-          icon: Icon(
-            isActive ? Icons.toggle_on : Icons.toggle_off,
-            color: isActive ? Colors.green : Colors.grey,
-            size: 28,
-          ),
-          tooltip: isActive ? 'Deactivate' : 'Activate',
-          onPressed: () => runMutation({'id': couponId, 'isActive': !isActive}),
-        );
-      },
+      tooltip: isActive ? 'Deactivate' : 'Activate',
+      onPressed: () => onToggled(couponId, !isActive),
     );
   }
 }
 
 class _DeleteCouponButton extends StatelessWidget {
   final String couponId;
-  final VoidCallback onDeleted;
+  final Future<void> Function(String id) onDeleted;
 
   const _DeleteCouponButton({required this.couponId, required this.onDeleted});
 
   @override
   Widget build(BuildContext context) {
-    return Mutation(
-      options: MutationOptions(
-        document: gql(AdminMutations.deleteCoupon),
-        onCompleted: (_) => onDeleted(),
-      ),
-      builder: (runMutation, _) {
-        return IconButton(
-          icon: const Icon(Icons.delete_outline, color: Colors.red),
-          tooltip: 'Delete',
-          onPressed: () async {
-            final confirm = await showDialog<bool>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Delete Coupon'),
-                content: const Text(
-                  'Are you sure you want to delete this coupon?',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('Cancel'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text(
-                      'Delete',
-                      style: TextStyle(color: Colors.red),
-                    ),
-                  ),
-                ],
+    return IconButton(
+      icon: const Icon(Icons.delete_outline, color: Colors.red),
+      tooltip: 'Delete',
+      onPressed: () async {
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Delete Coupon'),
+            content: const Text(
+              'Are you sure you want to delete this coupon?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
               ),
-            );
-            if (confirm == true) {
-              runMutation({'id': couponId});
-            }
-          },
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
         );
+        if (confirm == true) {
+          onDeleted(couponId);
+        }
       },
     );
   }

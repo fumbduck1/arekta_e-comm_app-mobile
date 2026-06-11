@@ -48,7 +48,7 @@ class _CheckoutDetailsModalState extends State<CheckoutDetailsModal> {
       (widget.discountAmount ?? 0);
 
   String _formatCurrency(double amount) {
-    return NumberFormat.currency(symbol: '\$', decimalDigits: 2).format(amount);
+    return NumberFormat.currency(symbol: '৳', decimalDigits: 2).format(amount);
   }
 
   @override

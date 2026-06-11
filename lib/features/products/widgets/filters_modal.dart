@@ -153,14 +153,14 @@ class _FiltersModalState extends State<FiltersModal> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '\$${_minPrice.toStringAsFixed(0)}',
+                            '৳${_minPrice.toStringAsFixed(0)}',
                             style: const TextStyle(
                               fontWeight: FontWeight.w500,
                               fontSize: 14,
                             ),
                           ),
                           Text(
-                            '\$${_maxPrice.toStringAsFixed(0)}',
+                            '৳${_maxPrice.toStringAsFixed(0)}',
                             style: const TextStyle(
                               fontWeight: FontWeight.w500,
                               fontSize: 14,
@@ -176,8 +176,8 @@ class _FiltersModalState extends State<FiltersModal> {
                       max: 10000,
                       divisions: 100,
                       labels: RangeLabels(
-                        '\$${_minPrice.toStringAsFixed(0)}',
-                        '\$${_maxPrice.toStringAsFixed(0)}',
+                        '৳${_minPrice.toStringAsFixed(0)}',
+                        '৳${_maxPrice.toStringAsFixed(0)}',
                       ),
                       activeColor: const Color(0xFF6C63FF),
                       inactiveColor: Colors.grey[200],

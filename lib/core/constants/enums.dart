@@ -1,11 +1,9 @@
-/// User roles in the application matching Hasura RBAC
 enum UserRole {
   client,
   vendor,
   superAdmin;
 
-  /// Hasura role string
-  String get hasuraRole {
+  String get apiRole {
     switch (this) {
       case UserRole.client:
         return 'client';

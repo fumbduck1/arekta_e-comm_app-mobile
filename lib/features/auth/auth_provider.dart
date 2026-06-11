@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/constants/enums.dart';
-import '../../core/graphql/graphql_service.dart';
 import '../../models/user_model.dart';
 
 /// Authentication state
@@ -43,9 +42,6 @@ class AuthProvider extends ChangeNotifier {
         _user = null;
         _authState = AuthState.unauthenticated;
         notifyListeners();
-      } else if (event == AuthChangeEvent.tokenRefreshed) {
-        // Token refreshed — update GraphQL client
-        GraphQLService.instance.refresh();
       }
     });
   }
@@ -63,11 +59,10 @@ class AuthProvider extends ChangeNotifier {
       final response = await _supabase.auth.signUp(
         email: email,
         password: password,
-        data: {'name': name, 'role': role.hasuraRole},
+        data: {'name': name, 'role': role.apiRole},
       );
 
       if (response.user != null) {
-        GraphQLService.instance.refresh();
         await _fetchUserProfile();
         return true;
       }
@@ -90,7 +85,6 @@ class AuthProvider extends ChangeNotifier {
 
       await _supabase.auth.signInWithPassword(email: email, password: password);
 
-      GraphQLService.instance.refresh();
       await _fetchUserProfile();
       return true;
     } on AuthException catch (e) {
@@ -107,7 +101,6 @@ class AuthProvider extends ChangeNotifier {
     await _supabase.auth.signOut();
     _user = null;
     _authState = AuthState.unauthenticated;
-    GraphQLService.instance.refresh();
     notifyListeners();
   }
 
@@ -194,7 +187,6 @@ class AuthProvider extends ChangeNotifier {
     final userMetadata = sessionUser.userMetadata;
 
     final rawRole = _firstString([
-      _readHasuraDefaultRoleClaim(appMetadata),
       appMetadata['role'],
       userMetadata?['role'],
     ]);
@@ -239,25 +231,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  String? _readHasuraDefaultRoleClaim(Map<String, dynamic> appMetadata) {
-    const claimKeys = [
-      'https://hasura.io/jwt/claims',
-      'https://hasura.io/jwt/claims/',
-      'hasura_claims',
-    ];
-
-    for (final key in claimKeys) {
-      final claimSet = appMetadata[key];
-      if (claimSet is! Map<String, dynamic>) continue;
-
-      final role = claimSet['x-hasura-default-role'];
-      if (role is String && role.isNotEmpty) {
-        return role;
-      }
-    }
-
-    return null;
-  }
 
   String? _firstString(List<dynamic> values) {
     for (final value in values) {

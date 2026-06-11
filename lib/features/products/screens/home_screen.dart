@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:provider/provider.dart';
 import 'package:badges/badges.dart' as badges;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/graphql/queries/product_queries.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../models/product_model.dart';
 import '../../../models/category_model.dart';
@@ -25,7 +24,6 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Defer secondary sections until after first frame renders
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         setState(() => _showSecondaryContent = true);
@@ -75,42 +73,35 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          // Refetch will be triggered by the Query widgets
+          await _refreshAll();
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Carousels / Banners ────────────────────────
-              _CarouselSection(),
+              _CarouselSection(key: _carouselKey),
               const SizedBox(height: 20),
-
-              // ── Categories ─────────────────────────────────
               _SectionHeader(
                 title: 'Categories',
                 onSeeAll: () => Navigator.of(context).pushNamed('/products'),
               ),
-              _CategoriesSection(),
+              _CategoriesSection(key: _categoriesKey),
               const SizedBox(height: 20),
-
-              // ── Featured Products (deferred) ────────────────
               if (_showSecondaryContent) ...[
                 _SectionHeader(
                   title: 'Featured Products',
                   onSeeAll: () => Navigator.of(context).pushNamed('/products'),
                 ),
-                _FeaturedProductsSection(),
+                _FeaturedProductsSection(key: _featuredKey),
                 const SizedBox(height: 20),
-
-                // ── New Arrivals (deferred) ─────────────────
                 _SectionHeader(
                   title: 'New Arrivals',
                   onSeeAll: () => Navigator.of(
                     context,
                   ).pushNamed('/products', arguments: {'sort': 'newest'}),
                 ),
-                _NewArrivalsSection(),
+                _NewArrivalsSection(key: _newArrivalsKey),
               ],
               const SizedBox(height: 32),
             ],
@@ -119,11 +110,20 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
+  final _carouselKey = GlobalKey<_CarouselSectionState>();
+  final _categoriesKey = GlobalKey<_CategoriesSectionState>();
+  final _featuredKey = GlobalKey<_FeaturedProductsSectionState>();
+  final _newArrivalsKey = GlobalKey<_NewArrivalsSectionState>();
+
+  Future<void> _refreshAll() async {
+    _carouselKey.currentState?.load();
+    _categoriesKey.currentState?.load();
+    _featuredKey.currentState?.load();
+    _newArrivalsKey.currentState?.load();
+  }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Section Header
-// ═══════════════════════════════════════════════════════════════
 class _SectionHeader extends StatelessWidget {
   final String title;
   final VoidCallback? onSeeAll;
@@ -151,315 +151,359 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Carousel Banners
-// ═══════════════════════════════════════════════════════════════
-class _CarouselSection extends StatelessWidget {
+class _CarouselSection extends StatefulWidget {
+  const _CarouselSection({super.key});
+
+  @override
+  State<_CarouselSection> createState() => _CarouselSectionState();
+}
+
+class _CarouselSectionState extends State<_CarouselSection> {
+  List<CarouselModel> _carousels = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await Supabase.instance.client
+          .from('carousels')
+          .select('id, title, image_url, link_type, link_value, sort_order')
+          .eq('is_active', true)
+          .order('sort_order');
+      if (!mounted) return;
+      setState(() {
+        _carousels = (data as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .map((e) => CarouselModel.fromJson(e))
+            .toList();
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Query(
-      options: QueryOptions(
-        document: gql(ProductQueries.getCarousels),
-        fetchPolicy: FetchPolicy.cacheAndNetwork,
-      ),
-      builder: (result, {fetchMore, refetch}) {
-        if (result.isLoading && result.data == null) {
-          return const SizedBox(
-            height: 180,
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
+    if (_isLoading) {
+      return const SizedBox(
+        height: 180,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-        final carousels =
-            (result.data?['carousels'] as List<dynamic>?)
-                ?.map((e) => CarouselModel.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            [];
-
-        if (carousels.isEmpty) {
-          return Container(
-            height: 180,
-            margin: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Theme.of(context).colorScheme.primary,
-                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Center(
-              child: Text(
-                'Welcome to Arekta!',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          );
-        }
-
-        return CarouselSlider(
-          options: CarouselOptions(
-            height: 180,
-            autoPlay: true,
-            enlargeCenterPage: true,
-            viewportFraction: 0.9,
-            autoPlayInterval: const Duration(seconds: 4),
+    if (_carousels.isEmpty) {
+      return Container(
+        height: 180,
+        margin: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Theme.of(context).colorScheme.primary,
+              Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
+            ],
           ),
-          items: carousels.map((carousel) {
-            return ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: CachedNetworkImage(
-                imageUrl: carousel.imageUrl,
-                fit: BoxFit.cover,
-                width: double.infinity,
-                placeholder: (_, _) => Container(
-                  color: Colors.grey[200],
-                  child: const Center(child: CircularProgressIndicator()),
-                ),
-                errorWidget: (_, _, _) => Container(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.primary.withValues(alpha: 0.1),
-                  child: const Icon(Icons.image_not_supported, size: 48),
-                ),
-              ),
-            );
-          }).toList(),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Center(
+          child: Text(
+            'Welcome to Arekta!',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return CarouselSlider(
+      options: CarouselOptions(
+        height: 180,
+        autoPlay: true,
+        enlargeCenterPage: true,
+        viewportFraction: 0.9,
+        autoPlayInterval: const Duration(seconds: 4),
+      ),
+      items: _carousels.map((carousel) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: CachedNetworkImage(
+            imageUrl: carousel.imageUrl,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            placeholder: (_, _) => Container(
+              color: Colors.grey[200],
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+            errorWidget: (_, _, _) => Container(
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.1),
+              child: const Icon(Icons.image_not_supported, size: 48),
+            ),
+          ),
         );
-      },
+      }).toList(),
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Categories Horizontal List
-// ═══════════════════════════════════════════════════════════════
-class _CategoriesSection extends StatelessWidget {
+class _CategoriesSection extends StatefulWidget {
+  const _CategoriesSection({super.key});
+
+  @override
+  State<_CategoriesSection> createState() => _CategoriesSectionState();
+}
+
+class _CategoriesSectionState extends State<_CategoriesSection> {
+  List<CategoryModel> _categories = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await Supabase.instance.client
+          .from('categories')
+          .select('id, name, slug, image_url, parent_id')
+          .order('name');
+      if (!mounted) return;
+      setState(() {
+        _categories = (data as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .map((e) => CategoryModel.fromJson(e))
+            .toList();
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Query(
-      options: QueryOptions(
-        document: gql(ProductQueries.getCategories),
-        fetchPolicy: FetchPolicy.cacheAndNetwork,
-      ),
-      builder: (result, {fetchMore, refetch}) {
-        if (result.isLoading && result.data == null) {
-          return const SizedBox(
-            height: 100,
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
+    if (_isLoading) {
+      return const SizedBox(
+        height: 100,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-        if (result.hasException) {
-          debugPrint('Categories Query Error: ${result.exception}');
-          return const SizedBox(
-            height: 100,
-            child: Center(child: Text('Failed to load categories')),
-          );
-        }
+    if (_categories.isEmpty) {
+      return const SizedBox(
+        height: 100,
+        child: Center(child: Text('No categories')),
+      );
+    }
 
-        final categories =
-            (result.data?['categories'] as List<dynamic>?)
-                ?.map((e) => CategoryModel.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            [];
-
-        if (categories.isEmpty) {
-          return const SizedBox(
-            height: 100,
-            child: Center(child: Text('No categories')),
-          );
-        }
-
-        return SizedBox(
-          height: 100,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: categories.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              final category = categories[index];
-              return GestureDetector(
-                onTap: () {
-                  Navigator.of(context).pushNamed(
-                    '/products',
-                    arguments: {'categoryId': category.id},
-                  );
-                },
-                child: Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 32,
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.primary.withValues(alpha: 0.1),
-                      backgroundImage: category.imageUrl != null
-                          ? CachedNetworkImageProvider(category.imageUrl!)
-                          : null,
-                      child: category.imageUrl == null
-                          ? Icon(
-                              Icons.category,
-                              color: Theme.of(context).colorScheme.primary,
-                            )
-                          : null,
-                    ),
-                    const SizedBox(height: 6),
-                    SizedBox(
-                      width: 72,
-                      child: Text(
-                        category.name,
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                  ],
-                ),
+    return SizedBox(
+      height: 100,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _categories.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final category = _categories[index];
+          return GestureDetector(
+            onTap: () {
+              Navigator.of(context).pushNamed(
+                '/products',
+                arguments: {'categoryId': category.id},
               );
             },
-          ),
-        );
-      },
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 32,
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.1),
+                  backgroundImage: category.imageUrl != null
+                      ? CachedNetworkImageProvider(category.imageUrl!)
+                      : null,
+                  child: category.imageUrl == null
+                      ? Icon(
+                          Icons.category,
+                          color: Theme.of(context).colorScheme.primary,
+                        )
+                      : null,
+                ),
+                const SizedBox(height: 6),
+                SizedBox(
+                  width: 72,
+                  child: Text(
+                    category.name,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Featured Products Grid
-// ═══════════════════════════════════════════════════════════════
-class _FeaturedProductsSection extends StatelessWidget {
+class _FeaturedProductsSection extends StatefulWidget {
+  const _FeaturedProductsSection({super.key});
+
+  @override
+  State<_FeaturedProductsSection> createState() =>
+      _FeaturedProductsSectionState();
+}
+
+class _FeaturedProductsSectionState extends State<_FeaturedProductsSection> {
+  List<ProductModel> _products = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await Supabase.instance.client
+          .from('products')
+          .select(
+            'id, name, description, price, sale_price, stock, images, is_active, created_at, '
+            'category:categories(id, name, slug), '
+            'vendor:vendors(id, shop_name, logo_url)',
+          )
+          .eq('is_active', true)
+          .order('created_at', ascending: false)
+          .limit(6);
+      if (!mounted) return;
+      setState(() {
+        _products = (data as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .map((e) => ProductModel.fromJson(e))
+            .toList();
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Query(
-      options: QueryOptions(
-        document: gql(ProductQueries.getProducts),
-        variables: const {
-          'limit': 6,
-          'offset': 0,
-          'orderBy': [
-            {'created_at': 'desc'},
-          ],
+    if (_isLoading) {
+      return const SizedBox(
+        height: 250,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_products.isEmpty) {
+      return const SizedBox(
+        height: 200,
+        child: Center(child: Text('No products yet')),
+      );
+    }
+
+    return SizedBox(
+      height: 250,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _products.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          return _ProductCard(product: _products[index]);
         },
-        fetchPolicy: FetchPolicy.cacheAndNetwork,
       ),
-      builder: (result, {fetchMore, refetch}) {
-        if (result.isLoading && result.data == null) {
-          return const SizedBox(
-            height: 250,
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        if (result.hasException) {
-          debugPrint('Products Query Error: ${result.exception}');
-          return const SizedBox(
-            height: 200,
-            child: Center(child: Text('Failed to load products')),
-          );
-        }
-
-        final products =
-            (result.data?['products'] as List<dynamic>?)
-                ?.map((e) => ProductModel.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            [];
-
-        if (products.isEmpty) {
-          return const SizedBox(
-            height: 200,
-            child: Center(child: Text('No products yet')),
-          );
-        }
-
-        return SizedBox(
-          height: 250,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            itemCount: products.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              return _ProductCard(product: products[index]);
-            },
-          ),
-        );
-      },
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// New Arrivals — same query, different sort
-// ═══════════════════════════════════════════════════════════════
-class _NewArrivalsSection extends StatelessWidget {
+class _NewArrivalsSection extends StatefulWidget {
+  const _NewArrivalsSection({super.key});
+
+  @override
+  State<_NewArrivalsSection> createState() => _NewArrivalsSectionState();
+}
+
+class _NewArrivalsSectionState extends State<_NewArrivalsSection> {
+  List<ProductModel> _products = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await Supabase.instance.client
+          .from('vw_active_products_catalog')
+          .select('*')
+          .order('created_at', ascending: false)
+          .limit(6);
+      if (!mounted) return;
+      setState(() {
+        _products = (data as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .map((e) => ProductModel.fromJson(e))
+            .toList();
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Query(
-      options: QueryOptions(
-        document: gql(ProductQueries.getProducts),
-        variables: const {
-          'limit': 6,
-          'offset': 0,
-          'orderBy': [
-            {'created_at': 'desc'},
-          ],
-        },
-        fetchPolicy: FetchPolicy.cacheAndNetwork,
+    if (_isLoading) {
+      return const SizedBox(
+        height: 250,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_products.isEmpty) return const SizedBox.shrink();
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.7,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
       ),
-      builder: (result, {fetchMore, refetch}) {
-        if (result.isLoading && result.data == null) {
-          return const SizedBox(
-            height: 250,
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        if (result.hasException) {
-          debugPrint('Products Query Error: ${result.exception}');
-          return const SizedBox(
-            height: 200,
-            child: Center(child: Text('Failed to load products')),
-          );
-        }
-
-        final products =
-            (result.data?['products'] as List<dynamic>?)
-                ?.map((e) => ProductModel.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            [];
-
-        if (products.isEmpty) return const SizedBox.shrink();
-
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: 0.7,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-          ),
-          itemCount: products.length,
-          itemBuilder: (context, index) {
-            return _ProductCard(product: products[index]);
-          },
-        );
+      itemCount: _products.length,
+      itemBuilder: (context, index) {
+        return _ProductCard(product: _products[index]);
       },
     );
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// Reusable Product Card Widget
-// ═══════════════════════════════════════════════════════════════
 class _ProductCard extends StatelessWidget {
   final ProductModel product;
 
@@ -480,7 +524,6 @@ class _ProductCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Image ────────────────────────────────────
               Expanded(
                 flex: 3,
                 child: Stack(
@@ -531,8 +574,6 @@ class _ProductCard extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // ── Details ──────────────────────────────────
               Expanded(
                 flex: 2,
                 child: Padding(
@@ -549,8 +590,6 @@ class _ProductCard extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
-
-                      // Rating
                       if (product.avgRating != null)
                         Row(
                           children: [
@@ -575,8 +614,6 @@ class _ProductCard extends StatelessWidget {
                           ],
                         ),
                       const SizedBox(height: 4),
-
-                      // Price
                       Row(
                         children: [
                           Text(

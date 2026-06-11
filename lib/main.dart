@@ -3,14 +3,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/animations/animation_config.dart';
 import 'core/animations/custom_page_route.dart';
 import 'core/constants/app_constants.dart';
-import 'core/graphql/graphql_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/auth_provider.dart';
 import 'features/cart/cart_provider.dart';
@@ -52,8 +50,6 @@ void main() async {
       url: AppConstants.supabaseUrl,
       anonKey: AppConstants.supabaseAnonKey,
     );
-
-    GraphQLService.instance.init();
 
     // Keep splash visible for at least 1.5 seconds for smooth transition
     await Future.delayed(const Duration(milliseconds: 1500));
@@ -107,7 +103,6 @@ class _BootstrapAppState extends State<_BootstrapApp> {
         url: AppConstants.supabaseUrl,
         anonKey: AppConstants.supabaseAnonKey,
       );
-      GraphQLService.instance.init();
 
       // Calculate elapsed time and add delay if needed to show splash long enough
       final elapsed = DateTime.now().difference(initStart);
@@ -460,18 +455,15 @@ class ArekitaApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
       ],
-      child: GraphQLProvider(
-        client: GraphQLService.instance.client,
-        child: MaterialApp(
-          title: AppConstants.appName,
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.lightTheme,
-          darkTheme: AppTheme.darkTheme,
-          themeMode: ThemeMode.system, // Follow system dark/light mode
-          // Always start on home — sign-in lives in Profile tab
-          initialRoute: '/',
-          onGenerateRoute: _onGenerateRoute,
-        ),
+      child: MaterialApp(
+        title: AppConstants.appName,
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: ThemeMode.system, // Follow system dark/light mode
+        // Always start on home — sign-in lives in Profile tab
+        initialRoute: '/',
+        onGenerateRoute: _onGenerateRoute,
       ),
     );
   }

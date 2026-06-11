@@ -89,7 +89,7 @@ class UserModel {
     'email': email,
     'name': name,
     'phone': phone,
-    'role': role.hasuraRole,
+    'role': role.apiRole,
     'avatar_url': avatarUrl,
     'created_at': createdAt.toIso8601String(),
   };
@@ -189,15 +189,18 @@ class VendorModel {
     final direct = json['rating_avg'];
     if (direct is num) return direct.toDouble();
 
-    final reviewsAggregate = json['reviews_aggregate'];
-    if (reviewsAggregate is Map<String, dynamic>) {
-      final aggregate = reviewsAggregate['aggregate'];
+    final ra = json['reviews_aggregate'];
+    if (ra is Map<String, dynamic>) {
+      final aggregate = ra['aggregate'];
       if (aggregate is Map<String, dynamic>) {
         final avg = aggregate['avg'];
         if (avg is Map<String, dynamic>) {
           final rating = avg['rating'];
           if (rating is num) return rating.toDouble();
         }
+      } else {
+        final avgRating = ra['avg_rating'];
+        if (avgRating is num) return avgRating.toDouble();
       }
     }
 
@@ -208,9 +211,9 @@ class VendorModel {
 
       for (final item in products) {
         if (item is! Map<String, dynamic>) continue;
-        final reviewsAggregate = item['reviews_aggregate'];
-        if (reviewsAggregate is! Map<String, dynamic>) continue;
-        final aggregate = reviewsAggregate['aggregate'];
+        final ra = item['reviews_aggregate'];
+        if (ra is! Map<String, dynamic>) continue;
+        final aggregate = ra['aggregate'];
         if (aggregate is! Map<String, dynamic>) continue;
 
         final count = (aggregate['count'] as num?)?.toInt() ?? 0;

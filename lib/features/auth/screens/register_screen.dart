@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/enums.dart';
 import '../auth_provider.dart';
@@ -47,17 +48,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     // Validate admin code if registering as superAdmin
     if (_selectedRole == UserRole.superAdmin) {
-      if (_adminCodeController.text != 'admin123') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Invalid admin code'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
+      final isValid = await Supabase.instance.client
+          .rpc('verify_admin_code', params: {'p_code': _adminCodeController.text});
+      if (isValid != true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Invalid admin code'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
         return;
       }
     }
 
+    if (!mounted) return;
     final authProvider = context.read<AuthProvider>();
     final success = await authProvider.signUp(
       email: _emailController.text.trim(),

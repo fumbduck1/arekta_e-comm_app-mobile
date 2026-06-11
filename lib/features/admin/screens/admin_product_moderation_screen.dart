@@ -1,15 +1,100 @@
 import 'package:flutter/material.dart';
-import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/graphql/queries/admin_queries.dart';
 import '../../../features/auth/auth_provider.dart';
 import '../widgets/admin_app_drawer.dart';
 import '../widgets/admin_logout_action.dart';
 
-class AdminProductModerationScreen extends StatelessWidget {
+class AdminProductModerationScreen extends StatefulWidget {
   const AdminProductModerationScreen({super.key});
+
+  @override
+  State<AdminProductModerationScreen> createState() =>
+      _AdminProductModerationScreenState();
+}
+
+class _AdminProductModerationScreenState
+    extends State<AdminProductModerationScreen> {
+  final _supabase = Supabase.instance.client;
+  List<Map<String, dynamic>> _products = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  Future<void> _loadProducts() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await _supabase
+          .from('products')
+          .select(
+            'id, name, price, stock, created_at, moderation_status, moderation_notes, vendor:vendors(shop_name, is_approved)',
+          )
+          .eq('moderation_status', 'pending')
+          .order('created_at', ascending: false);
+
+      if (!mounted) return;
+      setState(() {
+        _products = List<Map<String, dynamic>>.from(data as List);
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  Future<void> _moderateProduct({
+    required String productId,
+    required bool isActive,
+    required String moderationStatus,
+    required String moderatedBy,
+    String? moderationNotes,
+  }) async {
+    try {
+      await _supabase
+          .from('products')
+          .update({
+            'is_active': isActive,
+            'moderation_status': moderationStatus,
+            'moderated_by': moderatedBy,
+            'moderation_notes': moderationNotes,
+          })
+          .eq('id', productId);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            moderationStatus == 'approved'
+                ? 'Product approved and now live.'
+                : 'Product rejected.',
+          ),
+          backgroundColor: moderationStatus == 'approved'
+              ? Colors.green
+              : Colors.red.shade700,
+        ),
+      );
+      await _loadProducts();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,127 +108,118 @@ class AdminProductModerationScreen extends StatelessWidget {
         title: const Text('Product Moderation'),
         actions: const [AdminLogoutAction()],
       ),
-      body: Query(
-        options: QueryOptions(
-          document: gql(AdminQueries.getPendingProducts),
-          fetchPolicy: FetchPolicy.networkOnly,
-        ),
-        builder: (result, {fetchMore, refetch}) {
-          if (result.isLoading && result.data == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (result.hasException) {
-            return Center(child: Text('Error: \${result.exception}'));
-          }
+      body: () {
+        if (_loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (_error != null) {
+          return Center(child: Text('Error: $_error'));
+        }
+        if (_products.isEmpty) {
+          return const Center(
+            child: Text('No pending products for validation.'),
+          );
+        }
 
-          final products = (result.data?['products'] as List<dynamic>?) ?? [];
-          if (products.isEmpty) {
-            return const Center(
-              child: Text('No pending products for validation.'),
-            );
-          }
+        return RefreshIndicator(
+          onRefresh: _loadProducts,
+          child: ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: _products.length,
+            itemBuilder: (context, index) {
+              final p = _products[index];
+              final vendor = p['vendor'] as Map<String, dynamic>?;
+              final createdAt = DateTime.tryParse(
+                p['created_at'] as String? ?? '',
+              );
+              final moderationStatus =
+                  p['moderation_status'] as String? ?? 'pending';
+              final moderationNotes = p['moderation_notes'] as String?;
 
-          return RefreshIndicator(
-            onRefresh: () async => refetch?.call(),
-            child: ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: products.length,
-              itemBuilder: (context, index) {
-                final p = products[index] as Map<String, dynamic>;
-                final vendor = p['vendor'] as Map<String, dynamic>?;
-                final createdAt = DateTime.tryParse(
-                  p['created_at'] as String? ?? '',
-                );
-                final moderationStatus =
-                    p['moderation_status'] as String? ?? 'pending';
-                final moderationNotes = p['moderation_notes'] as String?;
-
-                return Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                p['name'] as String? ?? 'Untitled Product',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 16,
-                                ),
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              p['name'] as String? ?? 'Untitled Product',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 16,
                               ),
                             ),
-                            _ModerationStatusChip(status: moderationStatus),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text('Vendor: ${vendor?['shop_name'] ?? 'Unknown'}'),
-                        Text(
-                          'Vendor profile approved: ${((vendor?['is_approved'] as bool?) ?? false) ? 'Yes' : 'No'}',
-                        ),
-                        Text(
-                          'Price: ${currency.format((p['price'] as num?)?.toDouble() ?? 0)}',
-                        ),
-                        Text('Stock: ${(p['stock'] as int?) ?? 0}'),
-                        if (createdAt != null)
-                          Text(
-                            'Uploaded: ${DateFormat('dd MMM yyyy, hh:mm a').format(createdAt.toLocal())}',
                           ),
-                        if (moderationNotes != null &&
-                            moderationNotes.isNotEmpty) ...[
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.orange.shade50,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: Colors.orange.shade200),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Icon(
-                                  Icons.notes_outlined,
-                                  size: 14,
-                                  color: Colors.orange,
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    moderationNotes,
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          _ModerationStatusChip(status: moderationStatus),
                         ],
-                        const SizedBox(height: 10),
-                        _ModerationActions(
-                          productId: p['id'] as String,
-                          adminId: adminId,
-                          onModerated: () => refetch?.call(),
+                      ),
+                      const SizedBox(height: 8),
+                      Text('Vendor: ${vendor?['shop_name'] ?? 'Unknown'}'),
+                      Text(
+                        'Vendor profile approved: ${((vendor?['is_approved'] as bool?) ?? false) ? 'Yes' : 'No'}',
+                      ),
+                      Text(
+                        'Price: ${currency.format((p['price'] as num?)?.toDouble() ?? 0)}',
+                      ),
+                      Text('Stock: ${(p['stock'] as int?) ?? 0}'),
+                      if (createdAt != null)
+                        Text(
+                          'Uploaded: ${DateFormat('dd MMM yyyy, hh:mm a').format(createdAt.toLocal())}',
+                        ),
+                      if (moderationNotes != null &&
+                          moderationNotes.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: Colors.orange.shade200),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(
+                                Icons.notes_outlined,
+                                size: 14,
+                                color: Colors.orange,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  moderationNotes,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
-                    ),
+                      const SizedBox(height: 10),
+                      _ModerationActions(
+                        productId: p['id'] as String,
+                        adminId: adminId,
+                        onModerated: _moderateProduct,
+                      ),
+                    ],
                   ),
-                );
-              },
-            ),
-          );
-        },
-      ),
+                ),
+              );
+            },
+          ),
+        );
+      }(),
     );
   }
 }
 
-/// Colour-coded chip showing the current moderation_status of a product.
 class _ModerationStatusChip extends StatelessWidget {
   final String status;
   const _ModerationStatusChip({required this.status});
@@ -166,11 +242,16 @@ class _ModerationStatusChip extends StatelessWidget {
   }
 }
 
-/// Approve + Reject buttons. Rejection opens a dialog for optional notes.
 class _ModerationActions extends StatelessWidget {
   final String productId;
   final String adminId;
-  final VoidCallback onModerated;
+  final Future<void> Function({
+    required String productId,
+    required bool isActive,
+    required String moderationStatus,
+    required String moderatedBy,
+    String? moderationNotes,
+  }) onModerated;
 
   const _ModerationActions({
     required this.productId,
@@ -210,88 +291,41 @@ class _ModerationActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Mutation(
-      options: MutationOptions(
-        document: gql(AdminMutations.moderateProduct),
-        onCompleted: (data) {
-          onModerated();
-          final status =
-              (data?['update_products_by_pk']?['moderation_status']
-                  as String?) ??
-              '';
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                status == 'approved'
-                    ? 'Product approved and now live.'
-                    : 'Product rejected.',
-              ),
-              backgroundColor: status == 'approved'
-                  ? Colors.green
-                  : Colors.red.shade700,
-            ),
-          );
-        },
-        onError: (error) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Error: \${error?.graphqlErrors.firstOrNull?.message ?? error}',
-              ),
-              backgroundColor: Colors.red,
-            ),
-          );
-        },
-      ),
-      builder: (runMutation, result) {
-        final isLoading = result?.isLoading == true;
-        return Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            OutlinedButton.icon(
-              onPressed: isLoading
-                  ? null
-                  : () async {
-                      final note = await _promptRejectionNote(context);
-                      if (note == null) return; // user cancelled
-                      runMutation({
-                        'id': productId,
-                        'isActive': false,
-                        'moderationStatus': 'rejected',
-                        'moderatedBy': adminId,
-                        'moderationNotes': note.isEmpty ? null : note,
-                      });
-                    },
-              icon: const Icon(Icons.cancel_outlined, size: 16),
-              label: const Text('Reject'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.red,
-                side: const BorderSide(color: Colors.red),
-              ),
-            ),
-            const SizedBox(width: 8),
-            FilledButton.icon(
-              onPressed: isLoading
-                  ? null
-                  : () => runMutation({
-                      'id': productId,
-                      'isActive': true,
-                      'moderationStatus': 'approved',
-                      'moderatedBy': adminId,
-                      'moderationNotes': null,
-                    }),
-              icon: isLoading
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.verified_outlined),
-              label: const Text('Approve & Publish'),
-            ),
-          ],
-        );
-      },
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        OutlinedButton.icon(
+          onPressed: () async {
+            final note = await _promptRejectionNote(context);
+            if (note == null) return;
+            onModerated(
+              productId: productId,
+              isActive: false,
+              moderationStatus: 'rejected',
+              moderatedBy: adminId,
+              moderationNotes: note.isEmpty ? null : note,
+            );
+          },
+          icon: const Icon(Icons.cancel_outlined, size: 16),
+          label: const Text('Reject'),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.red,
+            side: const BorderSide(color: Colors.red),
+          ),
+        ),
+        const SizedBox(width: 8),
+        FilledButton.icon(
+          onPressed: () => onModerated(
+            productId: productId,
+            isActive: true,
+            moderationStatus: 'approved',
+            moderatedBy: adminId,
+            moderationNotes: null,
+          ),
+          icon: const Icon(Icons.verified_outlined),
+          label: const Text('Approve & Publish'),
+        ),
+      ],
     );
   }
 }

@@ -1,12 +1,67 @@
 import 'package:flutter/material.dart';
-import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:intl/intl.dart';
-import '../../../core/graphql/queries/admin_queries.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../widgets/admin_app_drawer.dart';
 import '../widgets/admin_logout_action.dart';
 
-class AdminReportsScreen extends StatelessWidget {
+class AdminReportsScreen extends StatefulWidget {
   const AdminReportsScreen({super.key});
+
+  @override
+  State<AdminReportsScreen> createState() => _AdminReportsScreenState();
+}
+
+class _AdminReportsScreenState extends State<AdminReportsScreen> {
+  final _supabase = Supabase.instance.client;
+  bool _loading = true;
+  String? _error;
+
+  int _userCount = 0;
+  int _vendorCount = 0;
+  int _orderCount = 0;
+  double _totalRevenue = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final results = await Future.wait([
+        _supabase.from('users').select('id'),
+        _supabase.from('vendors').select('id'),
+        _supabase.from('orders').select('total_amount'),
+      ]);
+
+      if (!mounted) return;
+
+      final users = results[0] as List;
+      final vendors = results[1] as List;
+      final orders = (results[2] as List).cast<Map<String, dynamic>>();
+
+      double totalRevenue = 0;
+      for (final o in orders) {
+        totalRevenue += (o['total_amount'] as num?)?.toDouble() ?? 0;
+      }
+
+      setState(() {
+        _userCount = users.length;
+        _vendorCount = vendors.length;
+        _orderCount = orders.length;
+        _totalRevenue = totalRevenue;
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,134 +74,127 @@ class AdminReportsScreen extends StatelessWidget {
         title: const Text('Reports'),
         actions: const [AdminLogoutAction()],
       ),
-      body: Query(
-        options: QueryOptions(
-          document: gql(AdminQueries.getDashboardStats),
-          fetchPolicy: FetchPolicy.networkOnly,
-        ),
-        builder: (result, {fetchMore, refetch}) {
-          if (result.isLoading && result.data == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (result.hasException) {
-            return Center(child: Text('Error: ${result.exception}'));
-          }
-
-          final data = result.data!;
-          final userCount =
-              data['users_aggregate']?['aggregate']?['count'] as int?;
-          final vendorCount =
-              data['vendors_aggregate']?['aggregate']?['count'] as int? ?? 0;
-          final orderCount =
-              data['orders_aggregate']?['aggregate']?['count'] as int? ?? 0;
-          final totalRevenue =
-              (data['orders_aggregate_revenue']?['aggregate']?['sum']?['total_amount']
-                      as num?)
-                  ?.toDouble() ??
-              0;
-
-          return RefreshIndicator(
-            onRefresh: () async => refetch?.call(),
-            child: ListView(
-              padding: const EdgeInsets.all(16),
+      body: () {
+        if (_loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (_error != null) {
+          return Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // ── Revenue Card ─────────────────────────
-                Card(
-                  color: theme.colorScheme.primary,
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Column(
-                      children: [
-                        const Icon(
-                          Icons.account_balance_wallet,
-                          color: Colors.white,
-                          size: 36,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          currency.format(totalRevenue),
-                          style: theme.textTheme.headlineMedium?.copyWith(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          'Total Revenue',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: Colors.white70,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
+                Text('Error: $_error'),
                 const SizedBox(height: 16),
-
-                // ── Stat Grid ────────────────────────────
-                Row(
-                  children: [
-                    _StatTile(
-                      icon: Icons.people,
-                      label: 'Users',
-                      value: userCount?.toString() ?? '—',
-                      color: Colors.blue,
-                    ),
-                    const SizedBox(width: 12),
-                    _StatTile(
-                      icon: Icons.store,
-                      label: 'Vendors',
-                      value: '$vendorCount',
-                      color: Colors.teal,
-                    ),
-                    const SizedBox(width: 12),
-                    _StatTile(
-                      icon: Icons.shopping_bag,
-                      label: 'Orders',
-                      value: '$orderCount',
-                      color: Colors.orange,
-                    ),
-                  ].map((w) => Expanded(child: w)).toList(),
-                ),
-
-                const SizedBox(height: 24),
-
-                // ── Averages ─────────────────────────────
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Averages',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        _InfoRow(
-                          label: 'Average Order Value',
-                          value: orderCount > 0
-                              ? currency.format(totalRevenue / orderCount)
-                              : '—',
-                        ),
-                        const Divider(),
-                        _InfoRow(
-                          label: 'Orders per User',
-                          value: (userCount ?? 0) > 0
-                              ? (orderCount / userCount!).toStringAsFixed(1)
-                              : '—',
-                        ),
-                      ],
-                    ),
-                  ),
+                ElevatedButton(
+                  onPressed: _loadStats,
+                  child: const Text('Retry'),
                 ),
               ],
             ),
           );
-        },
-      ),
+        }
+
+        return RefreshIndicator(
+          onRefresh: _loadStats,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // ── Revenue Card ─────────────────────────
+              Card(
+                color: theme.colorScheme.primary,
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    children: [
+                      const Icon(
+                        Icons.account_balance_wallet,
+                        color: Colors.white,
+                        size: 36,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        currency.format(_totalRevenue),
+                        style: theme.textTheme.headlineMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'Total Revenue',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ── Stat Grid ────────────────────────────
+              Row(
+                children: [
+                  _StatTile(
+                    icon: Icons.people,
+                    label: 'Users',
+                    value: '$_userCount',
+                    color: Colors.blue,
+                  ),
+                  const SizedBox(width: 12),
+                  _StatTile(
+                    icon: Icons.store,
+                    label: 'Vendors',
+                    value: '$_vendorCount',
+                    color: Colors.teal,
+                  ),
+                  const SizedBox(width: 12),
+                  _StatTile(
+                    icon: Icons.shopping_bag,
+                    label: 'Orders',
+                    value: '$_orderCount',
+                    color: Colors.orange,
+                  ),
+                ].map((w) => Expanded(child: w)).toList(),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── Averages ─────────────────────────────
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Averages',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _InfoRow(
+                        label: 'Average Order Value',
+                        value: _orderCount > 0
+                            ? currency.format(_totalRevenue / _orderCount)
+                            : '—',
+                      ),
+                      const Divider(),
+                      _InfoRow(
+                        label: 'Orders per User',
+                        value: _userCount > 0
+                            ? (_orderCount / _userCount).toStringAsFixed(1)
+                            : '—',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }(),
     );
   }
 }

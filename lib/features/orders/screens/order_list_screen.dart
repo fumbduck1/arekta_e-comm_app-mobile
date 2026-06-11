@@ -1,12 +1,59 @@
 import 'package:flutter/material.dart';
-import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../../core/graphql/queries/order_queries.dart';
 import '../../../models/order_model.dart';
 
-class OrderListScreen extends StatelessWidget {
+class OrderListScreen extends StatefulWidget {
   const OrderListScreen({super.key});
+
+  @override
+  State<OrderListScreen> createState() => _OrderListScreenState();
+}
+
+class _OrderListScreenState extends State<OrderListScreen> {
+  List<OrderModel> _orders = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOrders();
+  }
+
+  Future<void> _loadOrders() async {
+    setState(() => _isLoading = true);
+    try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
+      final data = await Supabase.instance.client
+          .from('orders')
+          .select(
+            'id, status, total_amount, payment_status, shipping_address, created_at, '
+            'order_items(id, quantity, price_at_purchase, status, '
+            '  product:products(id, name, images), '
+            '  vendor:vendors(id, shop_name))',
+          )
+          .eq('user_id', userId)
+          .order('created_at', ascending: false)
+          .limit(20);
+
+      if (!mounted) return;
+      setState(() {
+        _orders = (data as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .map((e) => OrderModel.fromJson(e))
+            .toList();
+        _isLoading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,58 +61,47 @@ class OrderListScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('My Orders')),
-      body: Query(
-        options: QueryOptions(
-          document: gql(OrderQueries.getOrders),
-          variables: const {'limit': 20, 'offset': 0},
-          fetchPolicy: FetchPolicy.networkOnly,
-        ),
-        builder: (result, {fetchMore, refetch}) {
-          if (result.isLoading && result.data == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: _buildBody(theme),
+    );
+  }
 
-          final orders =
-              (result.data?['orders'] as List<dynamic>?)
-                  ?.map((e) => OrderModel.fromJson(e as Map<String, dynamic>))
-                  .toList() ??
-              [];
+  Widget _buildBody(ThemeData theme) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-          if (orders.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.receipt_long_outlined,
-                    size: 64,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
-                  ),
-                  const SizedBox(height: 16),
-                  Text('No orders yet', style: theme.textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Your order history will appear here',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          return RefreshIndicator(
-            onRefresh: () async => refetch?.call(),
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: orders.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                return _OrderCard(order: orders[index]);
-              },
+    if (_orders.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.receipt_long_outlined,
+              size: 64,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.2),
             ),
-          );
+            const SizedBox(height: 16),
+            Text('No orders yet', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text(
+              'Your order history will appear here',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadOrders,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: _orders.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          return _OrderCard(order: _orders[index]);
         },
       ),
     );
@@ -102,7 +138,7 @@ class _OrderCard extends StatelessWidget {
     return Card(
       child: InkWell(
         onTap: () {
-          Navigator.of(context).pushNamed('/order-detail', arguments: order.id);
+          Navigator.of(context).pushNamed('/order', arguments: order.id);
         },
         borderRadius: BorderRadius.circular(12),
         child: Padding(
@@ -110,7 +146,6 @@ class _OrderCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Header ────────────────────────────────────
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -141,8 +176,6 @@ class _OrderCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-
-              // ── Date & Amount ─────────────────────────────
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -162,8 +195,6 @@ class _OrderCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-
-              // ── Items summary ─────────────────────────────
               Text(
                 '${order.items.length} item${order.items.length != 1 ? 's' : ''}',
                 style: theme.textTheme.bodySmall?.copyWith(

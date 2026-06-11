@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../models/product_model.dart';
 import '../../../models/review_model.dart';
-import '../../../core/graphql/queries/product_queries.dart';
 import '../../auth/auth_provider.dart';
 import '../../cart/cart_provider.dart';
 
@@ -20,101 +19,104 @@ class ProductDetailScreen extends StatefulWidget {
 }
 
 class _ProductDetailScreenState extends State<ProductDetailScreen> {
-  bool _hasRetriedWithPublicRole = false;
-  bool _forcePublicRoleForRead = false;
+  ProductModel? _product;
+  List<ReviewModel> _reviews = [];
+  bool _isLoading = true;
+  String? _error;
 
-  bool _isPermissionOrAuthException(OperationException? exception) {
-    if (exception == null) return false;
-
-    final messages = <String>[
-      ...exception.graphqlErrors.map((e) => e.message),
-      exception.linkException?.toString() ?? '',
-      exception.toString(),
-    ].join(' ').toLowerCase();
-
-    return messages.contains('permission') ||
-        messages.contains('unauthorized') ||
-        messages.contains('forbidden') ||
-        messages.contains('authentication') ||
-        messages.contains('jwt') ||
-        messages.contains('access denied') ||
-        messages.contains('not allowed');
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
   }
 
-  void _retryWithPublicRoleFallback() {
-    if (_hasRetriedWithPublicRole) return;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _hasRetriedWithPublicRole) return;
-      setState(() {
-        _hasRetriedWithPublicRole = true;
-        _forcePublicRoleForRead = true;
-      });
+  Future<void> _loadData() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
     });
+
+    try {
+      final supabase = Supabase.instance.client;
+
+      final productData = await supabase
+          .from('products')
+          .select(
+            'id, name, description, price, sale_price, stock, images, is_active, created_at, '
+            'category:categories(id, name, slug), '
+            'vendor:vendors(id, shop_name, logo_url)',
+          )
+          .eq('id', widget.productId)
+          .single();
+
+      final reviewsAgg = await supabase
+          .from('reviews')
+          .select('rating')
+          .eq('product_id', widget.productId);
+
+      final avgRating = (reviewsAgg as List<dynamic>).isEmpty
+          ? null
+          : reviewsAgg
+                  .cast<Map<String, dynamic>>()
+                  .map((r) => (r['rating'] as num).toDouble())
+                  .reduce((a, b) => a + b) /
+              reviewsAgg.length;
+
+      final reviewsData = await supabase
+          .from('reviews')
+          .select('id, rating, comment, created_at, user:users(id, name, avatar_url)')
+          .eq('product_id', widget.productId)
+          .order('created_at', ascending: false)
+          .limit(10);
+
+      if (!mounted) return;
+      setState(() {
+        productData['reviews_aggregate'] = {
+          'aggregate': {
+            'avg': {'rating': avgRating},
+            'count': reviewsAgg.length,
+          },
+        };
+        _product = ProductModel.fromJson(productData);
+        _reviews = (reviewsData as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .map((r) => ReviewModel.fromJson(r))
+            .toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final roleContext = _forcePublicRoleForRead
-        ? Context().withEntry(
-            const HttpLinkHeaders(headers: {'x-hasura-role': 'public'}),
-          )
-        : const Context();
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
 
-    return Scaffold(
-      body: Query(
-        options: QueryOptions(
-          document: gql(ProductQueries.getProducts),
-          variables: {
-            'limit': 1,
-            'offset': 0,
-            'orderBy': [
-              {'created_at': 'desc'},
-            ],
-            'where': {
-              'id': {'_eq': widget.productId},
-            },
-          },
-          fetchPolicy: FetchPolicy.networkOnly,
-          context: roleContext,
-        ),
-        builder: (result, {fetchMore, refetch}) {
-          // Loading state
-          if (result.isLoading && result.data == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    if (_error != null) {
+      return _ErrorScreen(
+        error: _error!,
+        onRetry: _loadData,
+      );
+    }
 
-          // Error handling
-          if (result.hasException) {
-            if (!_forcePublicRoleForRead &&
-                _isPermissionOrAuthException(result.exception)) {
-              _retryWithPublicRoleFallback();
-              return const Center(child: CircularProgressIndicator());
-            }
+    if (_product == null) {
+      return const _EmptyProductScreen();
+    }
 
-            return _ErrorScreen(exception: result.exception, onRetry: refetch);
-          }
-
-          // Empty result
-          final products = result.data?['products'] as List<dynamic>?;
-          if (products == null || products.isEmpty) {
-            return const _EmptyProductScreen();
-          }
-
-          final productData = products.first as Map<String, dynamic>;
-
-          // Parse product data
-          try {
-            final product = ProductModel.fromJson(productData);
-            const reviews = <ReviewModel>[];
-
-            return _ProductDetailContent(product: product, reviews: reviews);
-          } catch (e) {
-            debugPrint('[ProductDetail] Error parsing product: $e');
-            return _ParseErrorScreen(error: e.toString());
-          }
-        },
-      ),
+    return _ProductDetailContent(
+      product: _product!,
+      reviews: _reviews,
+      onReviewAdded: _loadData,
     );
   }
 }
@@ -122,8 +124,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 class _ProductDetailContent extends StatefulWidget {
   final ProductModel product;
   final List<ReviewModel> reviews;
+  final VoidCallback onReviewAdded;
 
-  const _ProductDetailContent({required this.product, required this.reviews});
+  const _ProductDetailContent({
+    required this.product,
+    required this.reviews,
+    required this.onReviewAdded,
+  });
 
   @override
   State<_ProductDetailContent> createState() => _ProductDetailContentState();
@@ -134,6 +141,78 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
   int _quantity = 1;
   bool _addingToCart = false;
 
+  void _showReviewDialog() {
+    final user = context.read<AuthProvider>().user;
+    if (user == null) {
+      Navigator.of(context).pushNamed('/login');
+      return;
+    }
+
+    int rating = 5;
+    final commentController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Write a Review'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RatingBar.builder(
+                initialRating: rating.toDouble(),
+                minRating: 1,
+                direction: Axis.horizontal,
+                itemCount: 5,
+                itemSize: 32,
+                itemBuilder: (_, _) => const Icon(Icons.star, color: Colors.amber),
+                onRatingUpdate: (val) => setDialogState(() => rating = val.toInt()),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: commentController,
+                decoration: const InputDecoration(
+                  hintText: 'Share your experience...',
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 3,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                try {
+                  await Supabase.instance.client.from('reviews').insert({
+                    'product_id': widget.product.id,
+                    'user_id': user.id,
+                    'rating': rating,
+                    'comment': commentController.text.trim().isEmpty
+                        ? null
+                        : commentController.text.trim(),
+                  });
+                  if (ctx.mounted) Navigator.of(ctx).pop();
+                  widget.onReviewAdded();
+                } catch (e) {
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(content: Text('Failed to submit review: $e')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Submit'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -142,14 +221,12 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // ── Image Gallery AppBar ─────────────────────────────
           SliverAppBar(
             expandedHeight: 350,
             pinned: true,
             flexibleSpace: FlexibleSpaceBar(
               background: Stack(
                 children: [
-                  // Main image
                   PageView.builder(
                     itemCount: product.images.length.clamp(1, 999),
                     onPageChanged: (index) {
@@ -175,8 +252,6 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
                       );
                     },
                   ),
-
-                  // Image indicators
                   if (product.images.length > 1)
                     Positioned(
                       bottom: 16,
@@ -199,8 +274,6 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
                         }),
                       ),
                     ),
-
-                  // Sale badge
                   if (product.isOnSale)
                     Positioned(
                       top: MediaQuery.of(context).padding.top + 56,
@@ -227,15 +300,12 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
               ),
             ),
           ),
-
-          // ── Product Info ─────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Name
                   Text(
                     product.name,
                     style: theme.textTheme.headlineSmall?.copyWith(
@@ -268,8 +338,6 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
                     ],
                   ),
                   const SizedBox(height: 12),
-
-                  // Rating summary
                   if (product.avgRating != null)
                     Row(
                       children: [
@@ -288,8 +356,6 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
                       ],
                     ),
                   const SizedBox(height: 8),
-
-                  // Stock status
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -313,8 +379,6 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
                     ),
                   ),
                   const SizedBox(height: 20),
-
-                  // Description
                   Text(
                     'Description',
                     style: theme.textTheme.titleMedium?.copyWith(
@@ -330,8 +394,6 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
                     ),
                   ),
                   const SizedBox(height: 24),
-
-                  // ── Reviews Section ──────────────────────────
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -342,15 +404,12 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
                         ),
                       ),
                       TextButton(
-                        onPressed: () {
-                          // Navigate to write review or see all reviews
-                        },
+                        onPressed: _showReviewDialog,
                         child: const Text('Write a Review'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
-
                   if (widget.reviews.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 16),
@@ -360,14 +419,13 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
                     ...widget.reviews.map(
                       (review) => _ReviewCard(review: review),
                     ),
-                  const SizedBox(height: 120), // Space for bottom action bar
+                  const SizedBox(height: 120),
                 ],
               ),
             ),
           ),
         ],
       ),
-      // ── Bottom Action Bar ──────────────────────────────────────
       bottomNavigationBar: Consumer<AuthProvider>(
         builder: (context, auth, _) {
           final isAuthenticated = auth.isAuthenticated;
@@ -391,7 +449,6 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Quantity selector (only for authenticated users)
                 if (isAuthenticated && product.inStock)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -445,7 +502,6 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
                   ),
                 if (isAuthenticated && product.inStock)
                   const SizedBox(height: 12),
-                // Action button
                 SizedBox(
                   width: double.infinity,
                   height: 48,
@@ -522,7 +578,6 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
   }
 }
 
-/// Review card widget
 class _ReviewCard extends StatelessWidget {
   final ReviewModel review;
 
@@ -589,20 +644,15 @@ class _ReviewCard extends StatelessWidget {
   }
 }
 
-/// Error screen for GraphQL/network errors
 class _ErrorScreen extends StatelessWidget {
-  final OperationException? exception;
+  final String error;
   final VoidCallback? onRetry;
 
-  const _ErrorScreen({this.exception, this.onRetry});
+  const _ErrorScreen({required this.error, this.onRetry});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final errorMessage = _parseErrorMessage(exception);
-    final isAuthError =
-        errorMessage.contains('authentication') ||
-        errorMessage.contains('unauthorized');
 
     return Scaffold(
       appBar: AppBar(title: const Text('Error')),
@@ -613,15 +663,13 @@ class _ErrorScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                isAuthError ? Icons.lock : Icons.error_outline,
+                Icons.error_outline,
                 size: 64,
                 color: theme.colorScheme.error,
               ),
               const SizedBox(height: 24),
               Text(
-                isAuthError
-                    ? 'Authentication Required'
-                    : 'Unable to Load Product',
+                'Unable to Load Product',
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -629,20 +677,14 @@ class _ErrorScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                errorMessage,
+                error,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 32),
-              if (isAuthError)
-                ElevatedButton.icon(
-                  onPressed: () => Navigator.of(context).pushNamed('/login'),
-                  icon: const Icon(Icons.login),
-                  label: const Text('Sign In'),
-                )
-              else if (onRetry != null)
+              if (onRetry != null)
                 ElevatedButton.icon(
                   onPressed: onRetry,
                   icon: const Icon(Icons.refresh),
@@ -660,40 +702,8 @@ class _ErrorScreen extends StatelessWidget {
       ),
     );
   }
-
-  String _parseErrorMessage(OperationException? exception) {
-    if (exception == null) return 'An unknown error occurred.';
-
-    // Check for GraphQL errors
-    if (exception.graphqlErrors.isNotEmpty) {
-      final error = exception.graphqlErrors.first;
-      final message = error.message.toLowerCase();
-
-      if (message.contains('invalid input syntax')) {
-        return 'There\'s a permission issue. Please try again or contact support.';
-      }
-      if (message.contains('authentication') ||
-          message.contains('unauthorized') ||
-          message.contains('jwt')) {
-        return 'Your session has expired. Please sign in again.';
-      }
-      if (message.contains('not found')) {
-        return 'This product is no longer available.';
-      }
-
-      return error.message;
-    }
-
-    // Check for network errors
-    if (exception.linkException != null) {
-      return 'Network connection error. Check your internet and try again.';
-    }
-
-    return 'An error occurred while loading the product.';
-  }
 }
 
-/// Empty product screen
 class _EmptyProductScreen extends StatelessWidget {
   const _EmptyProductScreen();
 
@@ -734,54 +744,6 @@ class _EmptyProductScreen extends StatelessWidget {
                 onPressed: () => Navigator.of(context).pop(),
                 icon: const Icon(Icons.arrow_back),
                 label: const Text('Back to Products'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Parse error screen
-class _ParseErrorScreen extends StatelessWidget {
-  final String error;
-
-  const _ParseErrorScreen({required this.error});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Error')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.warning_outlined, size: 64, color: Colors.orange[600]),
-              const SizedBox(height: 24),
-              Text(
-                'Failed to Parse Product',
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'The product data format is invalid. This is usually a temporary issue.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.arrow_back),
-                label: const Text('Go Back'),
               ),
             ],
           ),

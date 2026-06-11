@@ -1,16 +1,80 @@
 import 'package:flutter/material.dart';
-import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:typed_data';
 
 import '../../../core/constants/app_constants.dart';
-import '../../../core/graphql/queries/admin_queries.dart';
 import '../widgets/admin_app_drawer.dart';
 import '../widgets/admin_logout_action.dart';
 
-class AdminCarouselScreen extends StatelessWidget {
+class AdminCarouselScreen extends StatefulWidget {
   const AdminCarouselScreen({super.key});
+
+  @override
+  State<AdminCarouselScreen> createState() => _AdminCarouselScreenState();
+}
+
+class _AdminCarouselScreenState extends State<AdminCarouselScreen> {
+  final _supabase = Supabase.instance.client;
+  List<Map<String, dynamic>> _carousels = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCarousels();
+  }
+
+  Future<void> _loadCarousels() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await _supabase
+          .from('carousels')
+          .select('id, image_url, title, sort_order, is_active')
+          .order('sort_order', ascending: true);
+
+      if (!mounted) return;
+      setState(() {
+        _carousels = List<Map<String, dynamic>>.from(data as List);
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  Future<void> _toggleActive(String id, bool isActive) async {
+    try {
+      await _supabase
+          .from('carousels')
+          .update({'is_active': isActive})
+          .eq('id', id);
+      await _loadCarousels();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteCarousel(String id) async {
+    try {
+      await _supabase.from('carousels').delete().eq('id', id);
+      await _loadCarousels();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -25,79 +89,71 @@ class AdminCarouselScreen extends StatelessWidget {
         icon: const Icon(Icons.add_photo_alternate_outlined),
         label: const Text('Add Banner'),
       ),
-      body: Query(
-        options: QueryOptions(
-          document: gql(AdminQueries.getCarousels),
-          fetchPolicy: FetchPolicy.networkOnly,
-        ),
-        builder: (result, {fetchMore, refetch}) {
-          if (result.isLoading && result.data == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (result.hasException) {
-            return Center(child: Text('Error: ${result.exception}'));
-          }
+      body: () {
+        if (_loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (_error != null) {
+          return Center(child: Text('Error: $_error'));
+        }
+        if (_carousels.isEmpty) {
+          return const Center(child: Text('No carousel banners'));
+        }
 
-          final carousels = (result.data?['carousels'] as List<dynamic>?) ?? [];
-          if (carousels.isEmpty) {
-            return const Center(child: Text('No carousel banners'));
-          }
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: _carousels.length,
+          itemBuilder: (context, index) {
+            final c = _carousels[index];
+            final isActive = c['is_active'] as bool? ?? true;
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: carousels.length,
-            itemBuilder: (context, index) {
-              final c = carousels[index] as Map<String, dynamic>;
-              final isActive = c['is_active'] as bool? ?? true;
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    ClipRRect(
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(12),
-                      ),
-                      child: Image.network(
-                        c['image_url'] as String? ?? '',
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(12),
+                    ),
+                    child: Image.network(
+                      c['image_url'] as String? ?? '',
+                      height: 140,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
                         height: 140,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
-                          height: 140,
-                          color: Colors.grey[200],
-                          child: const Icon(Icons.broken_image, size: 48),
+                        color: Colors.grey[200],
+                        child: const Icon(Icons.broken_image, size: 48),
+                      ),
+                    ),
+                  ),
+                  ListTile(
+                    title: Text(
+                      c['title'] as String? ?? 'Untitled',
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text('Order: ${c['sort_order']}'),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _ToggleActiveButton(
+                          carouselId: c['id'] as String,
+                          isActive: isActive,
+                          onToggled: _toggleActive,
                         ),
-                      ),
+                        _DeleteCarouselButton(
+                          carouselId: c['id'] as String,
+                          onDeleted: _deleteCarousel,
+                        ),
+                      ],
                     ),
-                    ListTile(
-                      title: Text(
-                        c['title'] as String? ?? 'Untitled',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: Text('Order: ${c['sort_order']}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _ToggleActiveButton(
-                            carouselId: c['id'] as String,
-                            isActive: isActive,
-                            onToggled: () => refetch?.call(),
-                          ),
-                          _DeleteCarouselButton(
-                            carouselId: c['id'] as String,
-                            onDeleted: () => refetch?.call(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      }(),
     );
   }
 
@@ -190,70 +246,69 @@ class AdminCarouselScreen extends StatelessWidget {
               onPressed: () => Navigator.pop(dialogContext),
               child: const Text('Cancel'),
             ),
-            Mutation(
-              options: MutationOptions(
-                document: gql(AdminMutations.createCarousel),
-                onCompleted: (_) => Navigator.pop(dialogContext),
-              ),
-              builder: (runMutation, result) {
-                return TextButton(
-                  onPressed: result?.isLoading == true
-                      ? null
-                      : () async {
-                          final sortOrder = int.tryParse(
-                            sortOrderController.text.trim(),
+            TextButton(
+              onPressed: _isCreating
+                  ? null
+                  : () async {
+                      final sortOrder = int.tryParse(
+                        sortOrderController.text.trim(),
+                      );
+                      if (imageBytes == null || sortOrder == null) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Select an image and enter a valid sort order.',
+                              ),
+                            ),
                           );
-                          if (imageBytes == null || sortOrder == null) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Select an image and enter a valid sort order.',
-                                  ),
-                                ),
-                              );
-                            }
-                            return;
-                          }
+                        }
+                        return;
+                      }
 
-                          try {
-                            final imageUrl = await _uploadCarouselImage(
-                              imageBytes: imageBytes!,
-                              fileName:
-                                  imageName ??
-                                  'banner_${DateTime.now().millisecondsSinceEpoch}.jpg',
-                            );
+                      try {
+                        setState(() => _isCreating = true);
+                        final imageUrl = await _uploadCarouselImage(
+                          imageBytes: imageBytes!,
+                          fileName:
+                              imageName ??
+                              'banner_${DateTime.now().millisecondsSinceEpoch}.jpg',
+                        );
 
-                            runMutation({
-                              'title': titleController.text.trim().isEmpty
-                                  ? null
-                                  : titleController.text.trim(),
-                              'imageUrl': imageUrl,
-                              'linkType': linkType,
-                              'linkValue':
-                                  linkValueController.text.trim().isEmpty
-                                  ? null
-                                  : linkValueController.text.trim(),
-                              'sortOrder': sortOrder,
-                              'isActive': isActive,
-                            });
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Upload failed: $e')),
-                              );
-                            }
-                          }
-                        },
-                  child: result?.isLoading == true
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Upload'),
-                );
-              },
+                        await _supabase.from('carousels').insert({
+                          'title': titleController.text.trim().isEmpty
+                              ? null
+                              : titleController.text.trim(),
+                          'image_url': imageUrl,
+                          'link_type': linkType,
+                          'link_value':
+                              linkValueController.text.trim().isEmpty
+                              ? null
+                              : linkValueController.text.trim(),
+                          'sort_order': sortOrder,
+                          'is_active': isActive,
+                        });
+
+                        if (!dialogContext.mounted) return;
+                        Navigator.pop(dialogContext);
+                        await _loadCarousels();
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Upload failed: $e')),
+                          );
+                        }
+                      } finally {
+                        if (mounted) setState(() => _isCreating = false);
+                      }
+                    },
+              child: _isCreating
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Upload'),
             ),
           ],
         ),
@@ -261,11 +316,13 @@ class AdminCarouselScreen extends StatelessWidget {
     );
   }
 
+  bool _isCreating = false;
+
   Future<String> _uploadCarouselImage({
     required Uint8List imageBytes,
     required String fileName,
   }) async {
-    final storage = Supabase.instance.client.storage.from(
+    final storage = _supabase.storage.from(
       AppConstants.carouselBucket,
     );
     final safeFileName = fileName.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
@@ -284,7 +341,7 @@ class AdminCarouselScreen extends StatelessWidget {
 class _ToggleActiveButton extends StatelessWidget {
   final String carouselId;
   final bool isActive;
-  final VoidCallback onToggled;
+  final Future<void> Function(String id, bool isActive) onToggled;
 
   const _ToggleActiveButton({
     required this.carouselId,
@@ -294,29 +351,20 @@ class _ToggleActiveButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Mutation(
-      options: MutationOptions(
-        document: gql(AdminMutations.updateCarouselStatus),
-        onCompleted: (_) => onToggled(),
+    return IconButton(
+      icon: Icon(
+        isActive ? Icons.visibility : Icons.visibility_off,
+        color: isActive ? Colors.green : Colors.grey,
       ),
-      builder: (runMutation, _) {
-        return IconButton(
-          icon: Icon(
-            isActive ? Icons.visibility : Icons.visibility_off,
-            color: isActive ? Colors.green : Colors.grey,
-          ),
-          tooltip: isActive ? 'Deactivate' : 'Activate',
-          onPressed: () =>
-              runMutation({'id': carouselId, 'isActive': !isActive}),
-        );
-      },
+      tooltip: isActive ? 'Deactivate' : 'Activate',
+      onPressed: () => onToggled(carouselId, !isActive),
     );
   }
 }
 
 class _DeleteCarouselButton extends StatelessWidget {
   final String carouselId;
-  final VoidCallback onDeleted;
+  final Future<void> Function(String id) onDeleted;
 
   const _DeleteCarouselButton({
     required this.carouselId,
@@ -325,43 +373,35 @@ class _DeleteCarouselButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Mutation(
-      options: MutationOptions(
-        document: gql(AdminMutations.deleteCarousel),
-        onCompleted: (_) => onDeleted(),
-      ),
-      builder: (runMutation, _) {
-        return IconButton(
-          icon: const Icon(Icons.delete_outline, color: Colors.red),
-          tooltip: 'Delete',
-          onPressed: () async {
-            final confirm = await showDialog<bool>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Delete Banner'),
-                content: const Text(
-                  'Are you sure you want to delete this banner?',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('Cancel'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text(
-                      'Delete',
-                      style: TextStyle(color: Colors.red),
-                    ),
-                  ),
-                ],
+    return IconButton(
+      icon: const Icon(Icons.delete_outline, color: Colors.red),
+      tooltip: 'Delete',
+      onPressed: () async {
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Delete Banner'),
+            content: const Text(
+              'Are you sure you want to delete this banner?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
               ),
-            );
-            if (confirm == true) {
-              runMutation({'id': carouselId});
-            }
-          },
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
         );
+        if (confirm == true) {
+          onDeleted(carouselId);
+        }
       },
     );
   }

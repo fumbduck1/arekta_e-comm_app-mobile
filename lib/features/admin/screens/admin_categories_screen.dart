@@ -1,11 +1,87 @@
 import 'package:flutter/material.dart';
-import 'package:graphql_flutter/graphql_flutter.dart';
-import '../../../core/graphql/queries/admin_queries.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../widgets/admin_app_drawer.dart';
 import '../widgets/admin_logout_action.dart';
 
-class AdminCategoriesScreen extends StatelessWidget {
+class AdminCategoriesScreen extends StatefulWidget {
   const AdminCategoriesScreen({super.key});
+
+  @override
+  State<AdminCategoriesScreen> createState() => _AdminCategoriesScreenState();
+}
+
+class _AdminCategoriesScreenState extends State<AdminCategoriesScreen> {
+  final _supabase = Supabase.instance.client;
+  List<Map<String, dynamic>> _categories = [];
+  Map<String, int> _productCounts = {};
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final results = await Future.wait([
+        _supabase.from('categories').select('id, name, image_url').order('name', ascending: true),
+        _supabase.from('products').select('category_id'),
+      ]);
+
+      if (!mounted) return;
+
+      final categories = List<Map<String, dynamic>>.from(results[0] as List);
+      final allProducts = results[1] as List;
+      final productCounts = <String, int>{};
+      for (final p in allProducts) {
+        final cid = p['category_id'] as String?;
+        if (cid != null) {
+          productCounts[cid] = (productCounts[cid] ?? 0) + 1;
+        }
+      }
+
+      setState(() {
+        _categories = categories;
+        _productCounts = productCounts;
+        _loading = false;
+      });
+    } catch (e) {
+      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+    }
+  }
+
+  Future<void> _createCategory(String name, String slug) async {
+    try {
+      await _supabase.from('categories').insert({'name': name, 'slug': slug});
+      await _loadCategories();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to create: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteCategory(String id) async {
+    try {
+      await _supabase.from('categories').delete().eq('id', id);
+      await _loadCategories();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete: $e')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,59 +95,48 @@ class AdminCategoriesScreen extends StatelessWidget {
         onPressed: () => _showCreateDialog(context),
         child: const Icon(Icons.add),
       ),
-      body: Query(
-        options: QueryOptions(
-          document: gql(AdminQueries.getCategories),
-          fetchPolicy: FetchPolicy.networkOnly,
-        ),
-        builder: (result, {fetchMore, refetch}) {
-          if (result.isLoading && result.data == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (result.hasException) {
-            return Center(child: Text('Error: ${result.exception}'));
-          }
+      body: () {
+        if (_loading) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (_error != null) {
+          return Center(child: Text('Error: $_error'));
+        }
+        if (_categories.isEmpty) {
+          return const Center(child: Text('No categories yet'));
+        }
 
-          final categories =
-              (result.data?['categories'] as List<dynamic>?) ?? [];
-          if (categories.isEmpty) {
-            return const Center(child: Text('No categories yet'));
-          }
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: _categories.length,
+          itemBuilder: (context, index) {
+            final cat = _categories[index];
+            final productCount = _productCounts[cat['id'] as String] ?? 0;
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: categories.length,
-            itemBuilder: (context, index) {
-              final cat = categories[index] as Map<String, dynamic>;
-              final productCount =
-                  (cat['products_aggregate']?['aggregate']?['count'] as int?) ??
-                  0;
-
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: cat['image_url'] != null
-                      ? CircleAvatar(
-                          backgroundImage: NetworkImage(
-                            cat['image_url'] as String,
-                          ),
-                        )
-                      : const CircleAvatar(child: Icon(Icons.category)),
-                  title: Text(
-                    cat['name'] as String,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  subtitle: Text('$productCount products'),
-                  trailing: _DeleteCategoryButton(
-                    categoryId: cat['id'] as String,
-                    onDeleted: () => refetch?.call(),
-                  ),
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: cat['image_url'] != null
+                    ? CircleAvatar(
+                        backgroundImage: NetworkImage(
+                          cat['image_url'] as String,
+                        ),
+                      )
+                    : const CircleAvatar(child: Icon(Icons.category)),
+                title: Text(
+                  cat['name'] as String,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
-              );
-            },
-          );
-        },
-      ),
+                subtitle: Text('$productCount products'),
+                trailing: _DeleteCategoryButton(
+                  categoryId: cat['id'] as String,
+                  onDeleted: _deleteCategory,
+                ),
+              ),
+            );
+          },
+        );
+      }(),
     );
   }
 
@@ -92,30 +157,15 @@ class AdminCategoriesScreen extends StatelessWidget {
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
-          Mutation(
-            options: MutationOptions(
-              document: gql(AdminMutations.createCategory),
-              onCompleted: (_) => Navigator.pop(ctx),
-            ),
-            builder: (runMutation, result) {
-              return TextButton(
-                onPressed: result?.isLoading == true
-                    ? null
-                    : () {
-                        final name = nameController.text.trim();
-                        if (name.isNotEmpty) {
-                          runMutation({'name': name, 'slug': _slugify(name)});
-                        }
-                      },
-                child: result?.isLoading == true
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Create'),
-              );
+          TextButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              if (name.isNotEmpty) {
+                Navigator.pop(ctx);
+                await _createCategory(name, _slugify(name));
+              }
             },
+            child: const Text('Create'),
           ),
         ],
       ),
@@ -134,7 +184,7 @@ class AdminCategoriesScreen extends StatelessWidget {
 
 class _DeleteCategoryButton extends StatelessWidget {
   final String categoryId;
-  final VoidCallback onDeleted;
+  final Future<void> Function(String id) onDeleted;
 
   const _DeleteCategoryButton({
     required this.categoryId,
@@ -143,43 +193,35 @@ class _DeleteCategoryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Mutation(
-      options: MutationOptions(
-        document: gql(AdminMutations.deleteCategory),
-        onCompleted: (_) => onDeleted(),
-      ),
-      builder: (runMutation, _) {
-        return IconButton(
-          icon: const Icon(Icons.delete_outline, color: Colors.red),
-          tooltip: 'Delete',
-          onPressed: () async {
-            final confirm = await showDialog<bool>(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: const Text('Delete Category'),
-                content: const Text(
-                  'This will fail if products are still assigned to this category.',
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: const Text('Cancel'),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text(
-                      'Delete',
-                      style: TextStyle(color: Colors.red),
-                    ),
-                  ),
-                ],
+    return IconButton(
+      icon: const Icon(Icons.delete_outline, color: Colors.red),
+      tooltip: 'Delete',
+      onPressed: () async {
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Delete Category'),
+            content: const Text(
+              'This will fail if products are still assigned to this category.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
               ),
-            );
-            if (confirm == true) {
-              runMutation({'id': categoryId});
-            }
-          },
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
         );
+        if (confirm == true) {
+          onDeleted(categoryId);
+        }
       },
     );
   }

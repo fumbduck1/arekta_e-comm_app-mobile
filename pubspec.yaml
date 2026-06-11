@@ -14,9 +14,6 @@ dependencies:
 
   # ── State Management ─────────────────────────────────────
   provider: ^6.1.5
-  # ── GraphQL ──────────────────────────────────────────────
-  graphql_flutter: ^5.1.1
-
   # ── Supabase (Auth + Storage) ────────────────────────────
   supabase_flutter: ^2.8.4
 

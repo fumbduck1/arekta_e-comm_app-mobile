@@ -1,9 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import '../../core/graphql/graphql_service.dart';
-
-/// Address model for shipping addresses
 class Address {
   final String? id;
   final String userId;
@@ -12,7 +9,7 @@ class Address {
   final String state;
   final String zipCode;
   final String country;
-  final String? label; // e.g., "Home", "Work"
+  final String? label;
   final bool isDefault;
   final DateTime? createdAt;
 
@@ -86,7 +83,6 @@ class Address {
   }
 }
 
-/// Provider for managing user shipping addresses
 class AddressProvider extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
@@ -96,57 +92,25 @@ class AddressProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   List<Address> get addresses => _addresses;
 
-  /// Fetch all addresses for a user
+  SupabaseClient get _supabase => Supabase.instance.client;
+
   Future<bool> fetchAddresses(String userId) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      const query = '''
-        query GetUserAddresses(\$userId: uuid!) {
-          addresses(where: {user_id: {_eq: \$userId}}, order_by: [{is_default: desc}, {created_at: desc}]) {
-            id
-            user_id
-            street
-            city
-            state
-            zip_code
-            country
-            label
-            is_default
-            created_at
-          }
-        }
-      ''';
+      final data = await _supabase
+          .from('addresses')
+          .select('id, user_id, street, city, state, zip_code, country, label, is_default, created_at')
+          .eq('user_id', userId)
+          .order('is_default', ascending: false)
+          .order('created_at', ascending: false);
 
-      final result = await GraphQLService.instance.client.value.query(
-        QueryOptions(document: gql(query), variables: {'userId': userId}),
-      );
-
-      if (result.hasException) {
-        _errorMessage = result.exception.toString();
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
-
-      if (result.data == null) {
-        _addresses = [];
-        _isLoading = false;
-        notifyListeners();
-        return true;
-      }
-
-      final addressesData = result.data!['addresses'] as List?;
-      if (addressesData != null) {
-        _addresses = addressesData
-            .cast<Map<String, dynamic>>()
-            .map((data) => Address.fromJson(data))
-            .toList();
-      } else {
-        _addresses = [];
-      }
+      _addresses = (data as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map((d) => Address.fromJson(d))
+          .toList();
 
       _isLoading = false;
       notifyListeners();
@@ -159,72 +123,13 @@ class AddressProvider extends ChangeNotifier {
     }
   }
 
-  /// Add a new address
   Future<bool> addAddress(Address address) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      const mutation = '''
-        mutation AddAddress(
-          \$userId: uuid!
-          \$street: String!
-          \$city: String!
-          \$state: String!
-          \$zipCode: String!
-          \$country: String!
-          \$label: String
-          \$isDefault: Boolean
-        ) {
-          insert_addresses_one(object: {
-            user_id: \$userId
-            street: \$street
-            city: \$city
-            state: \$state
-            zip_code: \$zipCode
-            country: \$country
-            label: \$label
-            is_default: \$isDefault
-          }) {
-            id
-            user_id
-            street
-            city
-            state
-            zip_code
-            country
-            label
-            is_default
-            created_at
-          }
-        }
-      ''';
-
-      final result = await GraphQLService.instance.client.value.mutate(
-        MutationOptions(
-          document: gql(mutation),
-          variables: {
-            'userId': address.userId,
-            'street': address.street,
-            'city': address.city,
-            'state': address.state,
-            'zipCode': address.zipCode,
-            'country': address.country,
-            'label': address.label,
-            'isDefault': address.isDefault,
-          },
-        ),
-      );
-
-      if (result.hasException) {
-        _errorMessage = result.exception.toString();
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
-
-      // Refresh addresses list
+      await _supabase.from('addresses').insert(address.toJson());
       await fetchAddresses(address.userId);
       return true;
     } catch (e) {
@@ -235,74 +140,16 @@ class AddressProvider extends ChangeNotifier {
     }
   }
 
-  /// Update an existing address
   Future<bool> updateAddress(Address address) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      const mutation = '''
-        mutation UpdateAddress(
-          \$id: uuid!
-          \$street: String!
-          \$city: String!
-          \$state: String!
-          \$zipCode: String!
-          \$country: String!
-          \$label: String
-          \$isDefault: Boolean
-        ) {
-          update_addresses_by_pk(
-            pk_columns: {id: \$id}
-            _set: {
-              street: \$street
-              city: \$city
-              state: \$state
-              zip_code: \$zipCode
-              country: \$country
-              label: \$label
-              is_default: \$isDefault
-            }
-          ) {
-            id
-            user_id
-            street
-            city
-            state
-            zip_code
-            country
-            label
-            is_default
-            created_at
-          }
-        }
-      ''';
-
-      final result = await GraphQLService.instance.client.value.mutate(
-        MutationOptions(
-          document: gql(mutation),
-          variables: {
-            'id': address.id,
-            'street': address.street,
-            'city': address.city,
-            'state': address.state,
-            'zipCode': address.zipCode,
-            'country': address.country,
-            'label': address.label,
-            'isDefault': address.isDefault,
-          },
-        ),
-      );
-
-      if (result.hasException) {
-        _errorMessage = result.exception.toString();
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
-
-      // Refresh addresses list
+      await _supabase
+          .from('addresses')
+          .update(address.toJson())
+          .eq('id', address.id!);
       await fetchAddresses(address.userId);
       return true;
     } catch (e) {
@@ -313,33 +160,13 @@ class AddressProvider extends ChangeNotifier {
     }
   }
 
-  /// Delete an address
   Future<bool> deleteAddress(String addressId, String userId) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      const mutation = '''
-        mutation DeleteAddress(\$id: uuid!) {
-          delete_addresses_by_pk(id: \$id) {
-            id
-          }
-        }
-      ''';
-
-      final result = await GraphQLService.instance.client.value.mutate(
-        MutationOptions(document: gql(mutation), variables: {'id': addressId}),
-      );
-
-      if (result.hasException) {
-        _errorMessage = result.exception.toString();
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
-
-      // Refresh addresses list
+      await _supabase.from('addresses').delete().eq('id', addressId);
       await fetchAddresses(userId);
       return true;
     } catch (e) {
@@ -350,62 +177,21 @@ class AddressProvider extends ChangeNotifier {
     }
   }
 
-  /// Set an address as default for the user.
   Future<bool> setDefaultAddress(String addressId, String userId) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      const clearDefaultMutation = '''
-        mutation ClearDefaultAddress(\$userId: uuid!) {
-          update_addresses(
-            where: {user_id: {_eq: \$userId}}
-            _set: {is_default: false}
-          ) {
-            affected_rows
-          }
-        }
-      ''';
+      await _supabase
+          .from('addresses')
+          .update({'is_default': false})
+          .eq('user_id', userId);
 
-      final clearResult = await GraphQLService.instance.client.value.mutate(
-        MutationOptions(
-          document: gql(clearDefaultMutation),
-          variables: {'userId': userId},
-        ),
-      );
-
-      if (clearResult.hasException) {
-        _errorMessage = clearResult.exception.toString();
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
-
-      const setDefaultMutation = '''
-        mutation SetDefaultAddress(\$id: uuid!) {
-          update_addresses_by_pk(
-            pk_columns: {id: \$id}
-            _set: {is_default: true}
-          ) {
-            id
-          }
-        }
-      ''';
-
-      final setResult = await GraphQLService.instance.client.value.mutate(
-        MutationOptions(
-          document: gql(setDefaultMutation),
-          variables: {'id': addressId},
-        ),
-      );
-
-      if (setResult.hasException) {
-        _errorMessage = setResult.exception.toString();
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
+      await _supabase
+          .from('addresses')
+          .update({'is_default': true})
+          .eq('id', addressId);
 
       await fetchAddresses(userId);
       return true;
@@ -417,13 +203,11 @@ class AddressProvider extends ChangeNotifier {
     }
   }
 
-  /// Clear error message
   void clearError() {
     _errorMessage = null;
     notifyListeners();
   }
 
-  /// Reset provider state
   void reset() {
     _isLoading = false;
     _errorMessage = null;

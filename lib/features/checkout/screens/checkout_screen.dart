@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../../../core/graphql/graphql_service.dart';
-import '../../../core/graphql/queries/order_queries.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import '../../../models/carousel_coupon_model.dart';
 import '../../cart/cart_provider.dart';
 import '../widgets/checkout_details_modal.dart';
@@ -27,24 +26,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   CouponModel? _appliedCoupon;
   bool _isValidatingCoupon = false;
 
-  // Form data persistence
   String _savedAddress = '';
   String _savedCity = '';
   String _savedPhone = '';
   String _savedPaymentMethod = 'cod';
 
-  GraphQLClient get _gqlClient => GraphQLService.instance.client.value;
-
   @override
   void initState() {
     super.initState();
-    // Load saved form state
     _loadSavedState();
   }
 
   void _loadSavedState() {
-    // In a real app, you would load from shared preferences or secure storage
-    // For now, we'll just use default values
     _addressController.text = _savedAddress;
     _cityController.text = _savedCity;
     _phoneController.text = _savedPhone;
@@ -52,7 +45,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   void _saveState() {
-    // In a real app, you would save to shared preferences or secure storage
     _savedAddress = _addressController.text;
     _savedCity = _cityController.text;
     _savedPhone = _phoneController.text;
@@ -62,38 +54,29 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _placeOrder() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Save form state before placing order
     _saveState();
 
     setState(() => _isPlacingOrder = true);
 
     try {
-      final cart = context.read<CartProvider>();
+      final supabase = Supabase.instance.client;
+      final userId = supabase.auth.currentUser?.id;
+      if (userId == null) throw Exception('Not authenticated');
+
       final shippingAddress =
           '${_addressController.text}, ${_cityController.text}\nPhone: ${_phoneController.text}';
 
-      final couponDiscount = _calculateDiscount(cart.subtotal);
-
-      final result = await _gqlClient.mutate(
-        MutationOptions(
-          document: gql(OrderMutations.createOrder),
-          variables: {
-            'shippingAddress': shippingAddress,
-            'paymentMethod': _paymentMethod,
-            if (_appliedCoupon != null) 'couponId': _appliedCoupon!.id,
-            if (couponDiscount > 0) 'couponDiscount': couponDiscount,
-          },
-        ),
-      );
-
-      if (result.hasException) {
-        throw Exception(result.exception.toString());
-      }
+      await supabase.rpc('create_order_from_cart', params: {
+        'p_user_id': userId,
+        'p_shipping_address': shippingAddress,
+        'p_payment_method': _paymentMethod,
+        if (_appliedCoupon != null) 'p_coupon_code': _appliedCoupon!.code,
+      });
 
       if (!mounted) return;
+      final cart = context.read<CartProvider>();
       await cart.clearCart();
 
-      // Clear saved form state after successful order
       _savedAddress = '';
       _savedCity = '';
       _savedPhone = '';
@@ -135,25 +118,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     setState(() => _isValidatingCoupon = true);
 
     try {
-      final result = await _gqlClient.query(
-        QueryOptions(
-          document: gql(CouponQueries.getCouponByCode),
-          variables: {'code': code},
-          fetchPolicy: FetchPolicy.networkOnly,
-        ),
-      );
+      final data = await Supabase.instance.client
+          .from('coupons')
+          .select('id, code, discount_type, discount_value, min_order, max_uses, used_count, vendor_id, expires_at, is_active')
+          .eq('code', code)
+          .eq('is_active', true)
+          .maybeSingle();
 
       if (!mounted) return;
 
-      final coupons = result.data?['coupons'] as List<dynamic>?;
-      if (coupons == null || coupons.isEmpty) {
+      if (data == null) {
         _showCouponError('Invalid coupon code');
         return;
       }
 
-      final coupon = CouponModel.fromJson(
-        coupons.first as Map<String, dynamic>,
-      );
+      final coupon = CouponModel.fromJson(data);
 
       if (!coupon.isValid) {
         _showCouponError(
@@ -246,7 +225,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // ── Order Summary ──────────────────────────
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -324,7 +302,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
                 const SizedBox(height: 24),
 
-                // ── Shipping Address ───────────────────────
                 Text(
                   'Shipping Address',
                   style: theme.textTheme.titleMedium?.copyWith(
@@ -367,7 +344,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
                 const SizedBox(height: 24),
 
-                // ── Coupon Code ────────────────────────────
                 Text(
                   'Coupon Code (Optional)',
                   style: theme.textTheme.titleMedium?.copyWith(
@@ -431,7 +407,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
                 const SizedBox(height: 24),
 
-                // ── Payment Method ─────────────────────────
                 Text(
                   'Payment Method',
                   style: theme.textTheme.titleMedium?.copyWith(
@@ -442,8 +417,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 Card(
                   child: RadioGroup<String>(
                     groupValue: _paymentMethod,
-                    onChanged: (v) =>
-                        setState(() => _paymentMethod = v ?? _paymentMethod),
+                    onChanged: (v) => setState(() => _paymentMethod = v ?? _paymentMethod),
                     child: Column(
                       children: [
                         RadioListTile<String>(
@@ -466,7 +440,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
                 const SizedBox(height: 32),
 
-                // ── Place Order Button ─────────────────────
                 SizedBox(
                   height: 52,
                   child: ElevatedButton(
