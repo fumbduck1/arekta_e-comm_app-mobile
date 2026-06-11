@@ -22,6 +22,7 @@ class ProductListScreen extends StatefulWidget {
 
 class _ProductListScreenState extends State<ProductListScreen> {
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
   List<ProductModel> _products = [];
   bool _isLoading = true;
   int _totalCount = 0;
@@ -31,22 +32,34 @@ class _ProductListScreenState extends State<ProductListScreen> {
   String _sortOrder = 'desc';
   bool _isSearchVisible = false;
   bool _hasMore = true;
+  double? _selectedMinPrice;
+  double? _selectedMaxPrice;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _isSearchVisible = widget.showSearch;
     _loadProducts();
   }
 
   @override
   void dispose() {
+    _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
   }
 
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      _loadProducts(loadMore: true);
+    }
+  }
+
   Future<void> _loadProducts({bool loadMore = false}) async {
     if (loadMore && !_hasMore) return;
+    if (_isLoading) return;
 
     setState(() => _isLoading = !loadMore);
 
@@ -54,6 +67,36 @@ class _ProductListScreenState extends State<ProductListScreen> {
       if (loadMore) _offset += AppConstants.defaultPageSize;
 
       final supabase = Supabase.instance.client;
+
+      if (!loadMore) {
+        var countQuery = supabase
+            .from('products')
+            .select('id')
+            .eq('is_active', true);
+
+        final categoryId = widget.categoryId;
+        if (categoryId != null) {
+          countQuery = countQuery.eq('category_id', categoryId);
+        }
+
+        final searchTerm = _searchTerm;
+        if (searchTerm != null && searchTerm.isNotEmpty) {
+          countQuery = countQuery.ilike('name', '%$searchTerm%');
+        }
+
+        final minPrice = _selectedMinPrice;
+        if (minPrice != null) {
+          countQuery = countQuery.gte('price', minPrice);
+        }
+        final maxPrice = _selectedMaxPrice;
+        if (maxPrice != null) {
+          countQuery = countQuery.lte('price', maxPrice);
+        }
+
+        final countData = await countQuery;
+        _totalCount = (countData as List).length;
+      }
+
       dynamic query = supabase
           .from('products')
           .select('id, name, description, price, sale_price, stock, images, is_active, created_at, '
@@ -61,12 +104,23 @@ class _ProductListScreenState extends State<ProductListScreen> {
               'vendor:vendors(id, shop_name, logo_url)')
           .eq('is_active', true);
 
-      if (widget.categoryId != null) {
-        query = query.eq('category_id', widget.categoryId);
+      final categoryId = widget.categoryId;
+      if (categoryId != null) {
+        query = query.eq('category_id', categoryId);
       }
 
-      if (_searchTerm != null && _searchTerm!.isNotEmpty) {
-        query = query.ilike('name', '%$_searchTerm%');
+      final searchTerm = _searchTerm;
+      if (searchTerm != null && searchTerm.isNotEmpty) {
+        query = query.ilike('name', '%$searchTerm%');
+      }
+
+      final minPrice = _selectedMinPrice;
+      if (minPrice != null) {
+        query = query.gte('price', minPrice);
+      }
+      final maxPrice = _selectedMaxPrice;
+      if (maxPrice != null) {
+        query = query.lte('price', maxPrice);
       }
 
       query = query
@@ -87,7 +141,6 @@ class _ProductListScreenState extends State<ProductListScreen> {
               .map((e) => ProductModel.fromJson(e))
               .toList();
         }
-        _totalCount = _products.length;
         _hasMore = data.length >= AppConstants.defaultPageSize;
         _isLoading = false;
       });
@@ -153,11 +206,19 @@ class _ProductListScreenState extends State<ProductListScreen> {
                       _loadProducts();
                     },
                     onPriceRangeChanged: (minPrice, maxPrice) {
+                      setState(() {
+                        _selectedMinPrice = minPrice;
+                        _selectedMaxPrice = maxPrice;
+                        _offset = 0;
+                      });
+                      _loadProducts();
                     },
                     onReset: () {
                       setState(() {
                         _sortField = 'created_at';
                         _sortOrder = 'desc';
+                        _selectedMinPrice = null;
+                        _selectedMaxPrice = null;
                         _offset = 0;
                       });
                       _loadProducts();
@@ -217,6 +278,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
         ),
         Expanded(
           child: GridView.builder(
+            controller: _scrollController,
             padding: const EdgeInsets.all(16),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,

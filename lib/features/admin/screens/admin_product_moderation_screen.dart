@@ -20,6 +20,7 @@ class _AdminProductModerationScreenState
   final _supabase = Supabase.instance.client;
   List<Map<String, dynamic>> _products = [];
   bool _loading = true;
+  bool _isModerating = false;
   String? _error;
 
   @override
@@ -59,6 +60,8 @@ class _AdminProductModerationScreenState
     required String moderatedBy,
     String? moderationNotes,
   }) async {
+    if (_isModerating) return;
+    _isModerating = true;
     try {
       await _supabase
           .from('products')
@@ -93,6 +96,8 @@ class _AdminProductModerationScreenState
           ),
         );
       }
+    } finally {
+      _isModerating = false;
     }
   }
 
@@ -298,7 +303,7 @@ class _ModerationActions extends StatelessWidget {
           onPressed: () async {
             final note = await _promptRejectionNote(context);
             if (note == null) return;
-            onModerated(
+            await onModerated(
               productId: productId,
               isActive: false,
               moderationStatus: 'rejected',
@@ -315,13 +320,15 @@ class _ModerationActions extends StatelessWidget {
         ),
         const SizedBox(width: 8),
         FilledButton.icon(
-          onPressed: () => onModerated(
-            productId: productId,
-            isActive: true,
-            moderationStatus: 'approved',
-            moderatedBy: adminId,
-            moderationNotes: null,
-          ),
+          onPressed: () async {
+            await onModerated(
+              productId: productId,
+              isActive: true,
+              moderationStatus: 'approved',
+              moderatedBy: adminId,
+              moderationNotes: null,
+            );
+          },
           icon: const Icon(Icons.verified_outlined),
           label: const Text('Approve & Publish'),
         ),

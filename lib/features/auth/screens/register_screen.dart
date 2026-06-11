@@ -48,13 +48,25 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     // Validate admin code if registering as superAdmin
     if (_selectedRole == UserRole.superAdmin) {
-      final isValid = await Supabase.instance.client
-          .rpc('verify_admin_code', params: {'p_code': _adminCodeController.text});
-      if (isValid != true) {
+      try {
+        final isValid = await Supabase.instance.client
+            .rpc('verify_admin_code', params: {'p_code': _adminCodeController.text});
+        if (isValid != true) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Invalid admin code'),
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+            );
+          }
+          return;
+        }
+      } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Invalid admin code'),
+              content: Text('Admin code verification failed: $e'),
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
           );

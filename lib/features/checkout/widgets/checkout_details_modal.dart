@@ -11,7 +11,7 @@ class CheckoutDetailsModal extends StatefulWidget {
   final double taxCost;
   final double? discountAmount;
   final String? couponCode;
-  final VoidCallback onApplyCoupon;
+  final void Function(String couponCode) onApplyCoupon;
   final VoidCallback onRemoveCoupon;
   final VoidCallback onProceedCheckout;
 
@@ -363,7 +363,7 @@ class _CheckoutDetailsModalState extends State<CheckoutDetailsModal> {
               ),
               const SizedBox(width: 8),
               ElevatedButton(
-                onPressed: widget.onApplyCoupon,
+                onPressed: () => widget.onApplyCoupon(_couponController.text),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF6C63FF),
                   padding: const EdgeInsets.symmetric(vertical: 10),

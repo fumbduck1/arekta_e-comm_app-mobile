@@ -189,8 +189,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         taxCost: 0.0,
         discountAmount: discount > 0 ? discount : null,
         couponCode: _appliedCoupon?.code,
-        onApplyCoupon: () {
+        onApplyCoupon: (code) {
           Navigator.pop(context);
+          _couponController.text = code;
           _validateCoupon();
         },
         onRemoveCoupon: () {

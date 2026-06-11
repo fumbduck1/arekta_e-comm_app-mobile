@@ -23,13 +23,14 @@ class ProfileProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final payload = <String, dynamic>{};
+      if (name != null) payload['name'] = name;
+      if (phone != null) payload['phone'] = phone;
+      if (avatarUrl != null) payload['avatar_url'] = avatarUrl;
+
       final data = await Supabase.instance.client
           .from('users')
-          .update({
-            'name': ?name,
-            'phone': ?phone,
-            'avatar_url': ?avatarUrl,
-          })
+          .update(payload)
           .eq('id', userId)
           .select('id, email, name, phone, avatar_url, role, created_at')
           .single();

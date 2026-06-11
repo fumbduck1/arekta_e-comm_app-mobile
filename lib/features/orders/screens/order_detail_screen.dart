@@ -16,6 +16,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   OrderModel? _order;
   bool _isLoading = true;
   bool _isCancelling = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -41,9 +42,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       setState(() {
         _order = OrderModel.fromJson(data);
         _isLoading = false;
+        _errorMessage = null;
       });
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      if (mounted) setState(() { _isLoading = false; _errorMessage = e.toString(); });
     }
   }
 
@@ -107,6 +109,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   Widget _buildBody(ThemeData theme, NumberFormat currency, DateFormat dateFmt) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return Center(child: Text('Error: $_errorMessage'));
     }
 
     if (_order == null) {

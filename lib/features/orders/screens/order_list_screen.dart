@@ -14,6 +14,7 @@ class OrderListScreen extends StatefulWidget {
 class _OrderListScreenState extends State<OrderListScreen> {
   List<OrderModel> _orders = [];
   bool _isLoading = true;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -50,8 +51,16 @@ class _OrderListScreenState extends State<OrderListScreen> {
             .toList();
         _isLoading = false;
       });
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() { _isLoading = false; _errorMessage = e.toString(); });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load orders: ${e.toString()}'),
+            action: SnackBarAction(label: 'Retry', onPressed: _loadOrders),
+          ),
+        );
+      }
     }
   }
 
@@ -68,6 +77,21 @@ class _OrderListScreenState extends State<OrderListScreen> {
   Widget _buildBody(ThemeData theme) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: theme.colorScheme.error),
+            const SizedBox(height: 16),
+            Text('$_errorMessage', style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 8),
+            TextButton(onPressed: _loadOrders, child: const Text('Retry')),
+          ],
+        ),
+      );
     }
 
     if (_orders.isEmpty) {

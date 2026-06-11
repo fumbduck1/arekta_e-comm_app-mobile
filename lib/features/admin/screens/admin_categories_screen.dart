@@ -220,7 +220,7 @@ class _DeleteCategoryButton extends StatelessWidget {
           ),
         );
         if (confirm == true) {
-          onDeleted(categoryId);
+          await onDeleted(categoryId);
         }
       },
     );

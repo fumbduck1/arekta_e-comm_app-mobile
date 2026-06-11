@@ -56,6 +56,17 @@ class Address {
     'created_at': createdAt?.toIso8601String(),
   };
 
+  Map<String, dynamic> toInsertJson() => {
+    'user_id': userId,
+    'street': street,
+    'city': city,
+    'state': state,
+    'zip_code': zipCode,
+    'country': country,
+    'label': label,
+    'is_default': isDefault,
+  };
+
   Address copyWith({
     String? id,
     String? userId,
@@ -129,7 +140,7 @@ class AddressProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _supabase.from('addresses').insert(address.toJson());
+      await _supabase.from('addresses').insert(address.toInsertJson());
       await fetchAddresses(address.userId);
       return true;
     } catch (e) {
@@ -146,6 +157,9 @@ class AddressProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      if (address.id == null) {
+        throw ArgumentError('Cannot update an address without an id');
+      }
       await _supabase
           .from('addresses')
           .update(address.toJson())
@@ -185,13 +199,14 @@ class AddressProvider extends ChangeNotifier {
     try {
       await _supabase
           .from('addresses')
-          .update({'is_default': false})
-          .eq('user_id', userId);
+          .update({'is_default': true})
+          .eq('id', addressId);
 
       await _supabase
           .from('addresses')
-          .update({'is_default': true})
-          .eq('id', addressId);
+          .update({'is_default': false})
+          .eq('user_id', userId)
+          .neq('id', addressId);
 
       await fetchAddresses(userId);
       return true;

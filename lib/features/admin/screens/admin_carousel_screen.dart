@@ -357,7 +357,7 @@ class _ToggleActiveButton extends StatelessWidget {
         color: isActive ? Colors.green : Colors.grey,
       ),
       tooltip: isActive ? 'Deactivate' : 'Activate',
-      onPressed: () => onToggled(carouselId, !isActive),
+      onPressed: () async { await onToggled(carouselId, !isActive); },
     );
   }
 }
@@ -400,7 +400,7 @@ class _DeleteCarouselButton extends StatelessWidget {
           ),
         );
         if (confirm == true) {
-          onDeleted(carouselId);
+          await onDeleted(carouselId);
         }
       },
     );

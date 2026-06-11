@@ -117,10 +117,12 @@ class _HomeScreenState extends State<HomeScreen> {
   final _newArrivalsKey = GlobalKey<_NewArrivalsSectionState>();
 
   Future<void> _refreshAll() async {
-    _carouselKey.currentState?.load();
-    _categoriesKey.currentState?.load();
-    _featuredKey.currentState?.load();
-    _newArrivalsKey.currentState?.load();
+    await Future.wait([
+      _carouselKey.currentState?.load() ?? Future.value(),
+      _categoriesKey.currentState?.load() ?? Future.value(),
+      _featuredKey.currentState?.load() ?? Future.value(),
+      _newArrivalsKey.currentState?.load() ?? Future.value(),
+    ]);
   }
 }
 

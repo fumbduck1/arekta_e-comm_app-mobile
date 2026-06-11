@@ -264,7 +264,16 @@ class _AdminCouponsScreenState extends State<AdminCouponsScreen> {
                 final value = double.tryParse(
                   valueController.text.trim(),
                 );
-                if (code.isEmpty || value == null || value <= 0) {
+                if (code.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Coupon code is required')),
+                  );
+                  return;
+                }
+                if (value == null || value <= 0) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Discount value must be greater than 0')),
+                  );
                   return;
                 }
                 final minOrder = double.tryParse(
@@ -312,7 +321,7 @@ class _ToggleCouponButton extends StatelessWidget {
         size: 28,
       ),
       tooltip: isActive ? 'Deactivate' : 'Activate',
-      onPressed: () => onToggled(couponId, !isActive),
+      onPressed: () async { await onToggled(couponId, !isActive); },
     );
   }
 }
@@ -352,7 +361,7 @@ class _DeleteCouponButton extends StatelessWidget {
           ),
         );
         if (confirm == true) {
-          onDeleted(couponId);
+          await onDeleted(couponId);
         }
       },
     );
