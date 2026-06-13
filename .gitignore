@@ -62,6 +62,8 @@ coverage/
 
 # ── Internal docs & tasks (not for public) ─────────────────────────
 ARCHITECTURE.md
+SECURITY_AUDIT.md
+.opencode/
 tasks/
 
 # ── Build artifacts ───────────────────────────────────────────────
