@@ -60,8 +60,9 @@ coverage/
 # ── Web ───────────────────────────────────────────────────────────
 /web/*.map
 
-# ── Architecture docs (internal, not for public) ───────────────────
+# ── Internal docs & tasks (not for public) ─────────────────────────
 ARCHITECTURE.md
+tasks/
 
 # ── Build artifacts ───────────────────────────────────────────────
 *.log
