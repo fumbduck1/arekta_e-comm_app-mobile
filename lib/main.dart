@@ -1,5 +1,7 @@
 // ignore_for_file: depend_on_referenced_packages
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -41,13 +43,18 @@ import 'features/admin/screens/admin_product_moderation_screen.dart';
 import 'widgets/main_shell.dart';
 
 void main() async {
-  // Do initialization before showing any Dart UI
-  try {
-    await dotenv.load(fileName: '.env');
-    AppConstants.validateEnvVars();
+  runZonedGuarded(() async {
+    FlutterError.onError = (details) {
+      debugPrint('Flutter error: ${details.exception}');
+    };
 
-    await Supabase.initialize(
-      url: AppConstants.supabaseUrl,
+    // Do initialization before showing any Dart UI
+    try {
+      await dotenv.load(fileName: '.env');
+      AppConstants.validateEnvVars();
+
+      await Supabase.initialize(
+        url: AppConstants.supabaseUrl,
       anonKey: AppConstants.supabaseAnonKey,
     );
 
@@ -62,9 +69,12 @@ void main() async {
         context: ErrorDescription('while initializing app services'),
       ),
     );
-  } finally {}
+    } finally {}
 
-  runApp(const ArekitaApp());
+    runApp(const ArekitaApp());
+  }, (error, stack) {
+    debugPrint('Unhandled zone error: $error\n$stack');
+  });
 }
 
 /// Renders a branded splash while dotenv + Supabase init runs async,

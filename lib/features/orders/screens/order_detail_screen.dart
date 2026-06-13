@@ -45,7 +45,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         _errorMessage = null;
       });
     } catch (e) {
-      if (mounted) setState(() { _isLoading = false; _errorMessage = e.toString(); });
+      debugPrint('Failed to load order details: $e');
+      if (mounted) setState(() { _isLoading = false; _errorMessage = 'Failed to load order details'; });
     }
   }
 
@@ -77,16 +78,21 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
 
     setState(() => _isCancelling = true);
     try {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('Not authenticated');
+      }
       await Supabase.instance.client
           .from('orders')
           .update({'status': 'cancelled'})
-          .eq('id', widget.orderId);
+          .eq('id', widget.orderId)
+          .eq('user_id', userId);
 
       await _loadOrder();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to cancel: $e')),
+          SnackBar(content: Text('Failed to cancel order. Please try again.')),
         );
       }
     } finally {

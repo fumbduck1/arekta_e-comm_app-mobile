@@ -42,7 +42,8 @@ class _AdminVendorApprovalsScreenState
         _loading = false;
       });
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      debugPrint('Failed to load vendors: $e');
+      if (mounted) setState(() { _error = 'Failed to load vendors'; _loading = false; });
     }
   }
 
@@ -54,9 +55,10 @@ class _AdminVendorApprovalsScreenState
           .eq('id', id);
       await _loadVendors();
     } catch (e) {
+      debugPrint('Failed to update vendor: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update: $e')),
+          const SnackBar(content: Text('Failed to update vendor')),
         );
       }
     }

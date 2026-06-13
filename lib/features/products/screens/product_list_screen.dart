@@ -57,6 +57,9 @@ class _ProductListScreenState extends State<ProductListScreen> {
     }
   }
 
+  String _escapeLike(String s) =>
+      s.replaceAll('%', '\\%').replaceAll('_', '\\_');
+
   Future<void> _loadProducts({bool loadMore = false}) async {
     if (loadMore && !_hasMore) return;
     if (_isLoading) return;
@@ -81,7 +84,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
         final searchTerm = _searchTerm;
         if (searchTerm != null && searchTerm.isNotEmpty) {
-          countQuery = countQuery.ilike('name', '%$searchTerm%');
+          countQuery = countQuery.ilike('name', '%${_escapeLike(searchTerm)}%');
         }
 
         final minPrice = _selectedMinPrice;
@@ -111,7 +114,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
       final searchTerm = _searchTerm;
       if (searchTerm != null && searchTerm.isNotEmpty) {
-        query = query.ilike('name', '%$searchTerm%');
+        query = query.ilike('name', '%${_escapeLike(searchTerm)}%');
       }
 
       final minPrice = _selectedMinPrice;

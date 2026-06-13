@@ -1,51 +1,89 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
+# ── OS files ──────────────────────────────────────────────────────
 .DS_Store
-.atom/
-.build/
-.buildlog/
-.history
-.svn/
-.swiftpm/
-migrate_working_dir/
-database/
-Users\akram\arekta_e-comm_app mobile\mobile_apps.code-workspace
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
 
-# Environment secrets
-.env
-.env.example
-
-# IntelliJ related
+# ── IDE & Editor ──────────────────────────────────────────────────
+.idea/
 *.iml
 *.ipr
 *.iws
-.idea/
+.vscode/
+.idea_modules/
+*.sublime-*
+*.code-workspace
+.atom/
+.classpath
+.project
+.settings/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# ── Environment secrets ───────────────────────────────────────────
+.env
+# Keep .env.example tracked as a template
 
-# Flutter/Dart/Pub related
+# ── Database ───────────────────────────────────────────────────────
+database/
+
+# ── Dart / Flutter ────────────────────────────────────────────────
+.dart_tool/
+.pub/
+.pub-cache/
+.packages
+pubspec.lock
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+coverage/
 **/doc/api/
 **/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
-.kilo/
-# Symbolication related
+**/ios/Flutter/AppFrameworkInfo.plist
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/ServiceDefinitions.json
+
+# ── Android ───────────────────────────────────────────────────────
+/android/.gradle/
+/android/app/debug/
+/android/app/profile/
+/android/app/release/
+/local.properties
+*.keystore
+*.jks
+
+# ── Web ───────────────────────────────────────────────────────────
+/web/*.map
+
+# ── Architecture docs (internal, not for public) ───────────────────
+ARCHITECTURE.md
+
+# ── Build artifacts ───────────────────────────────────────────────
+*.log
+*.pyc
+*.class
+*.js_
+*.css_
+*.js.map
+*.css.map
 app.*.symbols
-
-# Obfuscation related
 app.*.map.json
+.build/
+.buildlog/
+.history
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+# ── Node / Tools ──────────────────────────────────────────────────
+node_modules/
+.kilo/
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# ── OS-specific ───────────────────────────────────────────────────
+/Users/
+/Library/

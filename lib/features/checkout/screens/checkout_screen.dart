@@ -91,11 +91,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       );
       Navigator.of(context).popUntil((route) => route.isFirst);
     } catch (e) {
+      debugPrint('Failed to place order: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to place order: $e'),
-          backgroundColor: Theme.of(context).colorScheme.error,
+        const SnackBar(
+          content: Text('Failed to place order'),
+          backgroundColor: Colors.red,
         ),
       );
     } finally {

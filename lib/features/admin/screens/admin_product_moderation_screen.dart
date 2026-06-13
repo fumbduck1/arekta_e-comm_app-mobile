@@ -49,7 +49,8 @@ class _AdminProductModerationScreenState
         _loading = false;
       });
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      debugPrint('Failed to load products: $e');
+      if (mounted) setState(() { _error = 'Failed to load products'; _loading = false; });
     }
   }
 
@@ -88,10 +89,11 @@ class _AdminProductModerationScreenState
       );
       await _loadProducts();
     } catch (e) {
+      debugPrint('Moderation action failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
+          const SnackBar(
+            content: Text('Moderation action failed'),
             backgroundColor: Colors.red,
           ),
         );

@@ -14,7 +14,9 @@ class CartProvider extends ChangeNotifier {
   int get itemCount => _cart?.totalItems ?? 0;
   double get subtotal => _cart?.subtotal ?? 0.0;
   bool get isEmpty => _cart?.isEmpty ?? true;
-  List<CartItemModel> get items => _cart?.items ?? [];
+  List<CartItemModel> get items => _cart != null
+      ? List<CartItemModel>.unmodifiable(_cart!.items)
+      : [];
 
   SupabaseClient get _supabase => Supabase.instance.client;
 
@@ -24,23 +26,13 @@ class CartProvider extends ChangeNotifier {
       return null;
     }
 
-    final existing = await _supabase
+    final result = await _supabase
         .from('carts')
-        .select('id')
-        .eq('user_id', userId)
-        .maybeSingle();
-
-    if (existing != null && existing['id'] != null) {
-      return existing['id'] as String;
-    }
-
-    final created = await _supabase
-        .from('carts')
-        .insert({'user_id': userId})
+        .upsert({'user_id': userId}, onConflict: 'user_id')
         .select('id')
         .single();
 
-    return created['id'] as String;
+    return result['id'] as String;
   }
 
   Future<void> fetchCart() async {
@@ -69,7 +61,7 @@ class CartProvider extends ChangeNotifier {
         _cart = null;
       }
     } catch (e) {
-      _error = 'Error loading cart: $e';
+      _error = 'Failed to load cart';
       debugPrint('Cart error: $e');
     } finally {
       _isLoading = false;
@@ -91,6 +83,20 @@ class CartProvider extends ChangeNotifier {
         return false;
       }
 
+      final product = await _supabase
+          .from('products')
+          .select('stock')
+          .eq('id', productId)
+          .single();
+
+      final stock = (product['stock'] as num?)?.toInt() ?? 0;
+      if (stock < quantity) {
+        _error = 'Only $stock items available in stock';
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
       final existingItem = await _supabase
           .from('cart_items')
           .select('id, quantity')
@@ -100,9 +106,16 @@ class CartProvider extends ChangeNotifier {
 
       if (existingItem != null) {
         final existingQty = (existingItem['quantity'] as num?)?.toInt() ?? 0;
+        final newQty = existingQty + quantity;
+        if (newQty > stock) {
+          _error = 'Only ${stock - existingQty} more items available in stock';
+          _isLoading = false;
+          notifyListeners();
+          return false;
+        }
         await _supabase
             .from('cart_items')
-            .update({'quantity': existingQty + quantity})
+            .update({'quantity': newQty})
             .eq('id', existingItem['id'] as String);
       } else {
         await _supabase.from('cart_items').insert({
@@ -120,7 +133,7 @@ class CartProvider extends ChangeNotifier {
       await fetchCart();
       return true;
     } catch (e) {
-      _error = 'Error adding to cart: $e';
+      _error = 'Failed to add to cart';
       debugPrint('Add to cart error: $e');
       _isLoading = false;
       notifyListeners();
@@ -157,7 +170,7 @@ class CartProvider extends ChangeNotifier {
       if (itemIndex != -1 && _cart != null && oldQuantity != null) {
         _cart!.items[itemIndex].quantity = oldQuantity;
       }
-      _error = 'Error updating cart: $e';
+      _error = 'Failed to update cart';
       debugPrint('Update quantity error: $e');
       _isLoading = false;
       notifyListeners();
@@ -186,7 +199,7 @@ class CartProvider extends ChangeNotifier {
       if (removedItem != null && _cart != null) {
         _cart!.items.add(removedItem);
       }
-      _error = 'Error removing from cart: $e';
+      _error = 'Failed to remove from cart';
       debugPrint('Remove item error: $e');
       _isLoading = false;
       notifyListeners();
@@ -209,7 +222,7 @@ class CartProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _error = 'Error clearing cart: $e';
+      _error = 'Failed to clear cart';
       debugPrint('Clear cart error: $e');
       _isLoading = false;
       notifyListeners();

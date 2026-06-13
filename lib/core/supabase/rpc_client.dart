@@ -13,7 +13,7 @@ class RpcClient {
       'p_user_id': userId,
       'p_shipping_address': shippingAddress,
       'p_payment_method': paymentMethod,
-      if (couponCode != null) 'p_coupon_code': couponCode,
+      'p_coupon_code': ?couponCode,
     });
     return Map<String, dynamic>.from(result);
   }
@@ -28,7 +28,7 @@ class RpcClient {
       'p_product_id': productId,
       'p_admin_user_id': adminUserId,
       'p_status': status,
-      if (moderationNotes != null) 'p_moderation_notes': moderationNotes,
+      'p_moderation_notes': ?moderationNotes,
     });
     return Map<String, dynamic>.from(result);
   }
@@ -48,7 +48,7 @@ class RpcClient {
     num? orderSubtotal,
   }) async {
     final result = await _supabase.rpc('get_active_coupons_for_user', params: {
-      if (orderSubtotal != null) 'p_order_subtotal': orderSubtotal,
+      'p_order_subtotal': ?orderSubtotal,
     });
     return result as List<dynamic>;
   }

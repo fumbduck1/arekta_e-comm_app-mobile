@@ -52,11 +52,12 @@ class _OrderListScreenState extends State<OrderListScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('Failed to load orders: $e');
       if (mounted) {
-        setState(() { _isLoading = false; _errorMessage = e.toString(); });
+        setState(() { _isLoading = false; _errorMessage = 'Failed to load orders'; });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to load orders: ${e.toString()}'),
+            content: const Text('Failed to load orders'),
             action: SnackBarAction(label: 'Retry', onPressed: _loadOrders),
           ),
         );

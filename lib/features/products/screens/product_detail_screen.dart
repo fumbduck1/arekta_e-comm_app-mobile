@@ -85,9 +85,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('Failed to load product details: $e');
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = 'Failed to load product';
           _isLoading = false;
         });
       }
@@ -198,9 +199,10 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
                   if (ctx.mounted) Navigator.of(ctx).pop();
                   widget.onReviewAdded();
                 } catch (e) {
+                  debugPrint('Failed to submit review: $e');
                   if (ctx.mounted) {
                     ScaffoldMessenger.of(ctx).showSnackBar(
-                      SnackBar(content: Text('Failed to submit review: $e')),
+                      const SnackBar(content: Text('Failed to submit review')),
                     );
                   }
                 }
@@ -532,12 +534,12 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
                                       setState(() => _quantity = 1);
                                     }
                                   } catch (e) {
+                                    debugPrint('Failed to add to cart: $e');
                                     if (mounted) {
                                       messenger.showSnackBar(
-                                        SnackBar(
-                                          content: Text('Error: $e'),
-                                          backgroundColor:
-                                              theme.colorScheme.error,
+                                        const SnackBar(
+                                          content: Text('Failed to add to cart'),
+                                          backgroundColor: Colors.red,
                                         ),
                                       );
                                     }

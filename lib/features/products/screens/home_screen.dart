@@ -461,7 +461,9 @@ class _NewArrivalsSectionState extends State<_NewArrivalsSection> {
     try {
       final data = await Supabase.instance.client
           .from('vw_active_products_catalog')
-          .select('*')
+          .select('id,name,description,price,sale_price,stock,images,created_at,'
+              'vendor_id,shop_name,category_id,category_name,avg_rating,review_count,'
+              'discount_percentage,in_stock,stock_status')
           .order('created_at', ascending: false)
           .limit(6);
       if (!mounted) return;

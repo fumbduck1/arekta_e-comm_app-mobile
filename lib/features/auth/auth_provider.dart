@@ -70,9 +70,11 @@ class AuthProvider extends ChangeNotifier {
       _setError('Sign up failed. Please check your email for confirmation.');
       return false;
     } on AuthException catch (e) {
-      _setError(e.message);
+      debugPrint('Sign up error: ${e.message}');
+      _setError('Sign up failed. Please try again.');
       return false;
     } catch (e) {
+      debugPrint('Sign up error: $e');
       _setError('An unexpected error occurred');
       return false;
     }
@@ -88,9 +90,11 @@ class AuthProvider extends ChangeNotifier {
       await _fetchUserProfile();
       return true;
     } on AuthException catch (e) {
-      _setError(e.message);
+      debugPrint('Sign in error: ${e.message}');
+      _setError('Sign in failed. Please check your credentials.');
       return false;
     } catch (e) {
+      debugPrint('Sign in error: $e');
       _setError('An unexpected error occurred');
       return false;
     }
@@ -110,7 +114,8 @@ class AuthProvider extends ChangeNotifier {
       await _supabase.auth.resetPasswordForEmail(email);
       return true;
     } on AuthException catch (e) {
-      _setError(e.message);
+      debugPrint('Reset password error: ${e.message}');
+      _setError('Failed to send reset email. Please try again.');
       return false;
     }
   }
@@ -184,13 +189,11 @@ class AuthProvider extends ChangeNotifier {
     if (sessionUser == null) return null;
 
     final appMetadata = sessionUser.appMetadata;
-    final userMetadata = sessionUser.userMetadata;
 
-    final rawRole = _firstString([
-      appMetadata['role'],
-      userMetadata?['role'],
-    ]);
-    final role = UserRole.fromString(rawRole ?? 'client');
+    final roleStr = appMetadata['role'] as String?;
+    final role = roleStr != null
+        ? UserRole.fromString(roleStr)
+        : UserRole.client;
     final createdAtValue = sessionUser.createdAt;
 
     DateTime createdAt;
@@ -229,16 +232,6 @@ class AuthProvider extends ChangeNotifier {
           createdAt: createdAt,
         );
     }
-  }
-
-
-  String? _firstString(List<dynamic> values) {
-    for (final value in values) {
-      if (value is String && value.isNotEmpty) {
-        return value;
-      }
-    }
-    return null;
   }
 
   /// Refresh user profile
@@ -298,7 +291,7 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } on PostgrestException catch (e) {
       debugPrint('Error creating vendor profile: ${e.message}');
-      _errorMessage = e.message;
+      _errorMessage = 'An unexpected error occurred';
       notifyListeners();
       return false;
     } catch (e) {
@@ -355,7 +348,7 @@ class AuthProvider extends ChangeNotifier {
       return true;
     } on PostgrestException catch (e) {
       debugPrint('Error updating vendor profile: ${e.message}');
-      _errorMessage = e.message;
+      _errorMessage = 'An unexpected error occurred';
       notifyListeners();
       return false;
     } catch (e) {

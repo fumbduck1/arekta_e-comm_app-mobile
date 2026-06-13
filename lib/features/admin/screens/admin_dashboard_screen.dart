@@ -84,7 +84,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         _loading = false;
       });
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      debugPrint('Failed to load dashboard data: $e');
+      if (mounted) setState(() { _error = 'Failed to load dashboard data'; _loading = false; });
     }
   }
 

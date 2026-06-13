@@ -57,10 +57,11 @@ class _VendorProductsScreenState extends State<VendorProductsScreen> {
         _loading = false;
       });
     } catch (e) {
+      debugPrint('Failed to load vendor products: $e');
       if (mounted) {
         setState(() {
           _loading = false;
-          _error = e.toString();
+          _error = 'Failed to load products';
         });
       }
     }
@@ -102,10 +103,11 @@ class _VendorProductsScreenState extends State<VendorProductsScreen> {
           .eq('id', product.id);
       await _loadProducts();
     } catch (e) {
+      debugPrint('Failed to delete product: $e');
       if (!context.mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
+      ).showSnackBar(const SnackBar(content: Text('Failed to delete product')));
     }
   }
 

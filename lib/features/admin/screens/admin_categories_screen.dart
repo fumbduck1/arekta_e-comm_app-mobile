@@ -53,7 +53,8 @@ class _AdminCategoriesScreenState extends State<AdminCategoriesScreen> {
         _loading = false;
       });
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      debugPrint('Failed to load categories: $e');
+      if (mounted) setState(() { _error = 'Failed to load categories'; _loading = false; });
     }
   }
 
@@ -62,9 +63,10 @@ class _AdminCategoriesScreenState extends State<AdminCategoriesScreen> {
       await _supabase.from('categories').insert({'name': name, 'slug': slug});
       await _loadCategories();
     } catch (e) {
+      debugPrint('Failed to create category: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create: $e')),
+          const SnackBar(content: Text('Failed to create category')),
         );
       }
     }
@@ -75,9 +77,10 @@ class _AdminCategoriesScreenState extends State<AdminCategoriesScreen> {
       await _supabase.from('categories').delete().eq('id', id);
       await _loadCategories();
     } catch (e) {
+      debugPrint('Failed to delete category: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete: $e')),
+          const SnackBar(content: Text('Failed to delete category')),
         );
       }
     }

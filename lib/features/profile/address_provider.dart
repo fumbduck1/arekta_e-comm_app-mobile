@@ -101,7 +101,7 @@ class AddressProvider extends ChangeNotifier {
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  List<Address> get addresses => _addresses;
+  List<Address> get addresses => List<Address>.unmodifiable(_addresses);
 
   SupabaseClient get _supabase => Supabase.instance.client;
 
@@ -127,7 +127,8 @@ class AddressProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = 'Failed to fetch addresses: $e';
+      debugPrint('Failed to fetch addresses: $e');
+      _errorMessage = 'Failed to fetch addresses';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -144,7 +145,8 @@ class AddressProvider extends ChangeNotifier {
       await fetchAddresses(address.userId);
       return true;
     } catch (e) {
-      _errorMessage = 'Failed to add address: $e';
+      debugPrint('Failed to add address: $e');
+      _errorMessage = 'Failed to add address';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -167,7 +169,8 @@ class AddressProvider extends ChangeNotifier {
       await fetchAddresses(address.userId);
       return true;
     } catch (e) {
-      _errorMessage = 'Failed to update address: $e';
+      debugPrint('Failed to update address: $e');
+      _errorMessage = 'Failed to update address';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -184,7 +187,8 @@ class AddressProvider extends ChangeNotifier {
       await fetchAddresses(userId);
       return true;
     } catch (e) {
-      _errorMessage = 'Failed to delete address: $e';
+      debugPrint('Failed to delete address: $e');
+      _errorMessage = 'Failed to delete address';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -211,7 +215,8 @@ class AddressProvider extends ChangeNotifier {
       await fetchAddresses(userId);
       return true;
     } catch (e) {
-      _errorMessage = 'Failed to set default address: $e';
+      debugPrint('Failed to set default address: $e');
+      _errorMessage = 'Failed to set default address';
       _isLoading = false;
       notifyListeners();
       return false;

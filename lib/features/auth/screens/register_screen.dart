@@ -63,11 +63,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
           return;
         }
       } catch (e) {
+        debugPrint('Admin code verification failed: $e');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Admin code verification failed: $e'),
-              backgroundColor: Theme.of(context).colorScheme.error,
+            const SnackBar(
+              content: Text('Admin code verification failed'),
+              backgroundColor: Colors.red,
             ),
           );
         }

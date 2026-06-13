@@ -30,10 +30,19 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            // TODO: Configure your release keystore
+            // keyAlias = "release"
+            // keyPassword = "..."
+            // storeFile = file("../release.jks")
+            // storePassword = "..."
+        }
+    }
+
     buildTypes {
         release {
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

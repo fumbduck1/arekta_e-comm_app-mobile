@@ -41,7 +41,8 @@ class _AdminCouponsScreenState extends State<AdminCouponsScreen> {
         _loading = false;
       });
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      debugPrint('Failed to load coupons: $e');
+      if (mounted) setState(() { _error = 'Failed to load coupons'; _loading = false; });
     }
   }
 
@@ -62,9 +63,10 @@ class _AdminCouponsScreenState extends State<AdminCouponsScreen> {
       });
       await _loadCoupons();
     } catch (e) {
+      debugPrint('Failed to create coupon: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create: $e')),
+          const SnackBar(content: Text('Failed to create coupon')),
         );
       }
     }
@@ -78,9 +80,10 @@ class _AdminCouponsScreenState extends State<AdminCouponsScreen> {
           .eq('id', id);
       await _loadCoupons();
     } catch (e) {
+      debugPrint('Failed to update coupon: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update: $e')),
+          const SnackBar(content: Text('Failed to update coupon')),
         );
       }
     }
@@ -91,9 +94,10 @@ class _AdminCouponsScreenState extends State<AdminCouponsScreen> {
       await _supabase.from('coupons').delete().eq('id', id);
       await _loadCoupons();
     } catch (e) {
+      debugPrint('Failed to delete coupon: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete: $e')),
+          const SnackBar(content: Text('Failed to delete coupon')),
         );
       }
     }

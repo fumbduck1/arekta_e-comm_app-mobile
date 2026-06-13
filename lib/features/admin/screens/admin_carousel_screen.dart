@@ -43,7 +43,8 @@ class _AdminCarouselScreenState extends State<AdminCarouselScreen> {
         _loading = false;
       });
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      debugPrint('Failed to load carousels: $e');
+      if (mounted) setState(() { _error = 'Failed to load carousels'; _loading = false; });
     }
   }
 
@@ -55,9 +56,10 @@ class _AdminCarouselScreenState extends State<AdminCarouselScreen> {
           .eq('id', id);
       await _loadCarousels();
     } catch (e) {
+      debugPrint('Failed to update carousel: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update: $e')),
+          SnackBar(content: const Text('Failed to update carousel')),
         );
       }
     }
@@ -68,9 +70,10 @@ class _AdminCarouselScreenState extends State<AdminCarouselScreen> {
       await _supabase.from('carousels').delete().eq('id', id);
       await _loadCarousels();
     } catch (e) {
+      debugPrint('Failed to delete carousel: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete: $e')),
+          SnackBar(content: const Text('Failed to delete carousel')),
         );
       }
     }
@@ -293,9 +296,10 @@ class _AdminCarouselScreenState extends State<AdminCarouselScreen> {
                         Navigator.pop(dialogContext);
                         await _loadCarousels();
                       } catch (e) {
+                        debugPrint('Upload failed: $e');
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Upload failed: $e')),
+                            const SnackBar(content: Text('Upload failed')),
                           );
                         }
                       } finally {
@@ -322,6 +326,10 @@ class _AdminCarouselScreenState extends State<AdminCarouselScreen> {
     required Uint8List imageBytes,
     required String fileName,
   }) async {
+    if (!_isValidImage(imageBytes)) {
+      throw Exception('Invalid image format. Only JPEG, PNG, GIF, and WebP are allowed.');
+    }
+
     final storage = _supabase.storage.from(
       AppConstants.carouselBucket,
     );
@@ -331,10 +339,18 @@ class _AdminCarouselScreenState extends State<AdminCarouselScreen> {
     await storage.uploadBinary(
       path,
       imageBytes,
-      fileOptions: const FileOptions(upsert: true),
+      fileOptions: const FileOptions(upsert: false),
     );
 
     return storage.getPublicUrl(path);
+  }
+
+  bool _isValidImage(Uint8List bytes) {
+    if (bytes.length < 4) return false;
+    return (bytes[0] == 0xFF && bytes[1] == 0xD8 && bytes[2] == 0xFF) ||
+        (bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E) ||
+        (bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46) ||
+        (bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46);
   }
 }
 

@@ -136,19 +136,21 @@ class _VendorAddProductScreenState extends State<VendorAddProductScreen> {
         context,
       ).pushNamedAndRemoveUntil('/vendor/products', (_) => false);
     } on PostgrestException catch (e) {
+      debugPrint('Failed to add product: ${e.message}');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to add product: ${e.message}'),
-          backgroundColor: Theme.of(context).colorScheme.error,
+        const SnackBar(
+          content: Text('Failed to add product'),
+          backgroundColor: Colors.red,
         ),
       );
     } catch (e) {
+      debugPrint('Failed to add product: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to add product: $e'),
-          backgroundColor: Theme.of(context).colorScheme.error,
+        const SnackBar(
+          content: Text('Failed to add product'),
+          backgroundColor: Colors.red,
         ),
       );
     } finally {

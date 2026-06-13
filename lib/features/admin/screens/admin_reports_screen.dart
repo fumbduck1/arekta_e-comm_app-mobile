@@ -59,7 +59,8 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
         _loading = false;
       });
     } catch (e) {
-      if (mounted) setState(() { _error = e.toString(); _loading = false; });
+      debugPrint('Failed to load reports: $e');
+      if (mounted) setState(() { _error = 'Failed to load reports'; _loading = false; });
     }
   }
 

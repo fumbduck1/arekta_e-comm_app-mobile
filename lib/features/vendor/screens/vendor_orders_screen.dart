@@ -55,10 +55,11 @@ class _VendorOrdersScreenState extends State<VendorOrdersScreen> {
         _loading = false;
       });
     } catch (e) {
+      debugPrint('Failed to load vendor orders: $e');
       if (mounted) {
         setState(() {
           _loading = false;
-          _error = e.toString();
+          _error = 'Failed to load orders';
         });
       }
     }
@@ -254,10 +255,11 @@ class _StatusDropdownState extends State<_StatusDropdown> {
           .eq('id', widget.orderItemId);
       widget.onStatusChanged();
     } catch (e) {
+      debugPrint('Failed to update order status: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Failed to update status: $e')));
+        ).showSnackBar(const SnackBar(content: Text('Failed to update status')));
       }
     } finally {
       if (mounted) setState(() => _loading = false);

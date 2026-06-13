@@ -40,7 +40,8 @@ class ProfileProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _errorMessage = 'Failed to update profile: $e';
+      debugPrint('Failed to update profile: $e');
+      _errorMessage = 'Failed to update profile';
       _isLoading = false;
       notifyListeners();
       return false;
