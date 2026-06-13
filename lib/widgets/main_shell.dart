@@ -85,15 +85,17 @@ class _MainShellState extends State<MainShell> {
   ];
 
   void _onClientTap(int index) {
-    if (index == widget.currentIndex) return;
+    final safe = _safeIndex(index, _clientRoutes.length);
+    if (safe == widget.currentIndex) return;
     Navigator.of(context)
-        .pushNamedAndRemoveUntil(_clientRoutes[index], (route) => false);
+        .pushNamedAndRemoveUntil(_clientRoutes[safe], (route) => false);
   }
 
   void _onVendorTap(int index) {
-    if (index == widget.currentIndex) return;
+    final safe = _safeIndex(index, _vendorRoutes.length);
+    if (safe == widget.currentIndex) return;
     Navigator.of(context)
-        .pushNamedAndRemoveUntil(_vendorRoutes[index], (route) => false);
+        .pushNamedAndRemoveUntil(_vendorRoutes[safe], (route) => false);
   }
 
   // void _onAdminTap(int index) {

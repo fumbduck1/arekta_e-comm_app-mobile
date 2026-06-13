@@ -82,11 +82,17 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       if (userId == null) {
         throw Exception('Not authenticated');
       }
-      await Supabase.instance.client
+      final response = await Supabase.instance.client
           .from('orders')
           .update({'status': 'cancelled'})
           .eq('id', widget.orderId)
-          .eq('user_id', userId);
+          .eq('user_id', userId)
+          .select();
+
+      final updatedRows = response as List<dynamic>;
+      if (updatedRows.isEmpty) {
+        throw Exception('Failed to cancel order');
+      }
 
       await _loadOrder();
     } catch (e) {

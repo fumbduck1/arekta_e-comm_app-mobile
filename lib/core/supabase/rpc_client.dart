@@ -13,9 +13,10 @@ class RpcClient {
       'p_user_id': userId,
       'p_shipping_address': shippingAddress,
       'p_payment_method': paymentMethod,
-      'p_coupon_code': ?couponCode,
+      'p_coupon_code': couponCode,
     });
-    return Map<String, dynamic>.from(result);
+    final data = result == null ? <String, dynamic>{} : Map<String, dynamic>.from(result);
+    return data;
   }
 
   static Future<Map<String, dynamic>> approveProductForSale({
@@ -28,9 +29,10 @@ class RpcClient {
       'p_product_id': productId,
       'p_admin_user_id': adminUserId,
       'p_status': status,
-      'p_moderation_notes': ?moderationNotes,
+      'p_moderation_notes': moderationNotes,
     });
-    return Map<String, dynamic>.from(result);
+    final data = result == null ? <String, dynamic>{} : Map<String, dynamic>.from(result);
+    return data;
   }
 
   static Future<Map<String, dynamic>> validateCoupon({
@@ -41,15 +43,16 @@ class RpcClient {
       'p_coupon_code': code,
       'p_order_subtotal': orderSubtotal,
     });
-    return Map<String, dynamic>.from(result);
+    final data = result == null ? <String, dynamic>{} : Map<String, dynamic>.from(result);
+    return data;
   }
 
   static Future<List<dynamic>> getActiveCoupons({
     num? orderSubtotal,
   }) async {
     final result = await _supabase.rpc('get_active_coupons_for_user', params: {
-      'p_order_subtotal': ?orderSubtotal,
+      'p_order_subtotal': orderSubtotal,
     });
-    return result as List<dynamic>;
+    return result == null ? [] : result as List<dynamic>;
   }
 }

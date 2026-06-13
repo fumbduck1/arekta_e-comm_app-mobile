@@ -139,18 +139,18 @@ class _VendorAddProductScreenState extends State<VendorAddProductScreen> {
       debugPrint('Failed to add product: ${e.message}');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to add product'),
-          backgroundColor: Colors.red,
+        SnackBar(
+          content: const Text('Failed to add product'),
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     } catch (e) {
       debugPrint('Failed to add product: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to add product'),
-          backgroundColor: Colors.red,
+        SnackBar(
+          content: const Text('Failed to add product'),
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     } finally {

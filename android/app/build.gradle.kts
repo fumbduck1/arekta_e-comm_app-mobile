@@ -5,6 +5,14 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Load keystore properties from android/key.properties
+val keystoreProperties = java.util.Properties().apply {
+    val f = rootProject.file("key.properties")
+    if (f.exists()) {
+        load(f.inputStream())
+    }
+}
+
 android {
     namespace = "com.arekta.arekta_ecomm"
     compileSdk = flutter.compileSdkVersion
@@ -20,10 +28,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.arekta.arekta_ecomm"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -32,11 +37,12 @@ android {
 
     signingConfigs {
         create("release") {
-            // TODO: Configure your release keystore
-            // keyAlias = "release"
-            // keyPassword = "..."
-            // storeFile = file("../release.jks")
-            // storePassword = "..."
+            keyAlias = keystoreProperties["keyAlias"] as? String ?: return@create
+            keyPassword = keystoreProperties["keyPassword"] as? String ?: return@create
+            storeFile = keystoreProperties["storeFile"]?.let {
+                rootProject.file(it)
+            } ?: return@create
+            storePassword = keystoreProperties["storePassword"] as? String ?: return@create
         }
     }
 

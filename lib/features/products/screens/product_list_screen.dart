@@ -64,10 +64,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
     if (loadMore && !_hasMore) return;
     if (_isLoading) return;
 
-    setState(() => _isLoading = !loadMore);
+    setState(() => _isLoading = true);
 
     try {
-      if (loadMore) _offset += AppConstants.defaultPageSize;
+      final nextOffset = loadMore ? _offset + AppConstants.defaultPageSize : 0;
 
       final supabase = Supabase.instance.client;
 
@@ -128,7 +128,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
       query = query
           .order(_sortField, ascending: _sortOrder == 'asc')
-          .range(_offset, _offset + AppConstants.defaultPageSize - 1);
+          .range(nextOffset, nextOffset + AppConstants.defaultPageSize - 1);
 
       final data = await query as List<dynamic>;
 
@@ -138,11 +138,13 @@ class _ProductListScreenState extends State<ProductListScreen> {
           _products.addAll(data
               .cast<Map<String, dynamic>>()
               .map((e) => ProductModel.fromJson(e)));
+          _offset = nextOffset;
         } else {
           _products = data
               .cast<Map<String, dynamic>>()
               .map((e) => ProductModel.fromJson(e))
               .toList();
+          _offset = 0;
         }
         _hasMore = data.length >= AppConstants.defaultPageSize;
         _isLoading = false;

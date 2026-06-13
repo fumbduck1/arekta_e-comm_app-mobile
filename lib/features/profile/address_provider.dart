@@ -164,7 +164,7 @@ class AddressProvider extends ChangeNotifier {
       }
       await _supabase
           .from('addresses')
-          .update(address.toJson())
+          .update(address.toInsertJson())
           .eq('id', address.id!);
       await fetchAddresses(address.userId);
       return true;
@@ -201,16 +201,17 @@ class AddressProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // First clear all existing defaults for this user
+      await _supabase
+          .from('addresses')
+          .update({'is_default': false})
+          .eq('user_id', userId);
+
+      // Then set the desired address as default
       await _supabase
           .from('addresses')
           .update({'is_default': true})
           .eq('id', addressId);
-
-      await _supabase
-          .from('addresses')
-          .update({'is_default': false})
-          .eq('user_id', userId)
-          .neq('id', addressId);
 
       await fetchAddresses(userId);
       return true;

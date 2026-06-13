@@ -28,6 +28,12 @@ class ProfileProvider extends ChangeNotifier {
       if (phone != null) payload['phone'] = phone;
       if (avatarUrl != null) payload['avatar_url'] = avatarUrl;
 
+      if (payload.isEmpty) {
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+
       final data = await Supabase.instance.client
           .from('users')
           .update(payload)

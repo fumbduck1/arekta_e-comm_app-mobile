@@ -27,7 +27,15 @@ class _OrderListScreenState extends State<OrderListScreen> {
     try {
       final userId = Supabase.instance.client.auth.currentUser?.id;
       if (userId == null) {
-        if (mounted) setState(() => _isLoading = false);
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = 'Not authenticated';
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Not authenticated')),
+          );
+        }
         return;
       }
 

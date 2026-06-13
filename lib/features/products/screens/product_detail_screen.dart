@@ -188,6 +188,26 @@ class _ProductDetailContentState extends State<_ProductDetailContent> {
             ElevatedButton(
               onPressed: () async {
                 try {
+                  final existing = await Supabase.instance.client
+                      .from('reviews')
+                      .select('id')
+                      .eq('product_id', widget.product.id)
+                      .eq('user_id', user.id)
+                      .maybeSingle();
+
+                  if (existing != null) {
+                    if (ctx.mounted) {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'You have already reviewed this product',
+                          ),
+                        ),
+                      );
+                    }
+                    return;
+                  }
+
                   await Supabase.instance.client.from('reviews').insert({
                     'product_id': widget.product.id,
                     'user_id': user.id,

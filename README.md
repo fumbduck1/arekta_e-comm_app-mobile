@@ -98,7 +98,7 @@ For **complete details** — system diagrams, DFDs for all 5 contexts, ER diagra
 
 | Dashboard | Product Approvals | Vendor Approvals |
 |:---:|:---:|:---:|
-| ![Dashboard](apk-images/admin-dashboard.png) | ![Products](apk-images/admin-product-qpprovalscreen.png) | ![Vendors](apk-images/admin-vendor-approvalscreen.png) |
+| ![Dashboard](apk-images/admin-dashboard.png) | ![Products](apk-images/admin-product-approvalscreen.png) | ![Vendors](apk-images/admin-vendor-approvalscreen.png) |
 
 ### Vendor Screens
 
