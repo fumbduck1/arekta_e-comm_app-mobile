@@ -386,14 +386,11 @@ class _FeaturedProductsSectionState extends State<_FeaturedProductsSection> {
     setState(() => _isLoading = true);
     try {
       final data = await Supabase.instance.client
-          .from('products')
+          .from('vw_top_products_by_sales')
           .select(
             'id, name, description, price, sale_price, stock, images, is_active, created_at, '
-            'category:categories(id, name, slug), '
-            'vendor:vendors(id, shop_name, logo_url)',
+            'category, vendor, total_sold',
           )
-          .eq('is_active', true)
-          .order('created_at', ascending: false)
           .limit(6);
       if (!mounted) return;
       setState(() {

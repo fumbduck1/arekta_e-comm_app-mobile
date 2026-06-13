@@ -39,6 +39,21 @@ class AdminAppDrawer extends StatelessWidget {
       icon: Icons.local_offer_outlined,
       label: 'Coupons',
     ),
+    _DrawerItem(
+      route: '/admin/reports',
+      icon: Icons.analytics_outlined,
+      label: 'Reports',
+    ),
+    _DrawerItem(
+      route: '/admin/subscriptions',
+      icon: Icons.subscriptions_outlined,
+      label: 'Subscriptions',
+    ),
+    _DrawerItem(
+      route: '/admin/webhooks',
+      icon: Icons.webhook_outlined,
+      label: 'Webhooks',
+    ),
   ];
 
   @override
@@ -51,9 +66,7 @@ class AdminAppDrawer extends StatelessWidget {
           children: [
             ListTile(
               leading: CircleAvatar(
-                backgroundColor: theme.colorScheme.primary.withValues(
-                  alpha: 0.12,
-                ),
+                backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.12),
                 child: Icon(
                   Icons.admin_panel_settings_outlined,
                   color: theme.colorScheme.primary,
@@ -77,12 +90,11 @@ class AdminAppDrawer extends StatelessWidget {
                         selected: currentRoute == item.route,
                         onTap: () {
                           Navigator.of(context).pop();
-                          if (currentRoute == item.route) {
-                            return;
-                          }
-                          Navigator.of(
-                            context,
-                          ).pushNamedAndRemoveUntil(item.route, (_) => false);
+                          if (currentRoute == item.route) return;
+                          Navigator.of(context).pushNamedAndRemoveUntil(
+                            item.route,
+                            (_) => false,
+                          );
                         },
                       ),
                     )
@@ -98,9 +110,7 @@ class AdminAppDrawer extends StatelessWidget {
                 final auth = context.read<AuthProvider>();
                 await auth.signOut();
                 if (!context.mounted) return;
-                Navigator.of(
-                  context,
-                ).pushNamedAndRemoveUntil('/', (_) => false);
+                Navigator.of(context).pushNamedAndRemoveUntil('/', (_) => false);
               },
             ),
           ],

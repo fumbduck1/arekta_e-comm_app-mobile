@@ -14,6 +14,7 @@ import 'core/constants/app_constants.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/auth_provider.dart';
 import 'features/cart/cart_provider.dart';
+import 'features/operator/operator_provider.dart';
 import 'features/profile/profile_provider.dart';
 
 // ── Screens ────────────────────────────────────────────────
@@ -40,6 +41,8 @@ import 'features/admin/screens/admin_categories_screen.dart';
 import 'features/admin/screens/admin_coupons_screen.dart';
 import 'features/admin/screens/admin_reports_screen.dart';
 import 'features/admin/screens/admin_product_moderation_screen.dart';
+import 'features/operator/screens/operator_register_screen.dart';
+import 'features/operator/screens/operator_setup_wizard_screen.dart';
 import 'widgets/main_shell.dart';
 
 void main() async {
@@ -464,6 +467,7 @@ class ArekitaApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()..initialize()),
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => ProfileProvider()),
+        ChangeNotifierProvider(create: (_) => OperatorProvider()),
       ],
       child: MaterialApp(
         title: AppConstants.appName,
@@ -585,6 +589,20 @@ class ArekitaApp extends StatelessWidget {
         break;
       case '/admin/reports':
         page = const _AdminGuard(child: AdminReportsScreen());
+        break;
+      case '/admin/subscriptions':
+        page = const _AdminGuard(child: AdminReportsScreen());
+        break;
+      case '/admin/webhooks':
+        page = const _AdminGuard(child: AdminReportsScreen());
+        break;
+
+      // ── Operator Routes ──────────────────────────────
+      case '/operator/register':
+        page = const OperatorRegisterScreen();
+        break;
+      case '/operator/setup':
+        page = const OperatorSetupWizardScreen();
         break;
 
       default:
